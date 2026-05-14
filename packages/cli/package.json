@@ -1,0 +1,21 @@
+{
+  "name": "@enter/cli",
+  "version": "0.1.0",
+  "type": "module",
+  "bin": {
+    "enter": "dist/cli.js"
+  },
+  "main": "dist/main.js",
+  "files": ["dist"],
+  "scripts": {
+    "build": "tsc -b",
+    "clean": "tsc -b --clean",
+    "dev": "tsx src/cli.ts"
+  },
+  "dependencies": {
+    "@enter/core": "0.1.0",
+    "@earendil-works/pi-agent-core": "^0.74.0",
+    "@earendil-works/pi-ai": "^0.74.0",
+    "@earendil-works/pi-tui": "^0.74.0"
+  }
+}

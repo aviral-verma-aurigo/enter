@@ -1,0 +1,14 @@
+{
+  "permissions": {
+    "allow": [
+      "WebFetch(domain:hermes-agent.nousresearch.com)",
+      "WebFetch(domain:pi.dev)",
+      "WebSearch",
+      "WebFetch(domain:continue.dev)",
+      "WebFetch(domain:aider.chat)",
+      "WebFetch(domain:docs.continue.dev)",
+      "Bash(npm run *)",
+      "Bash(npx vitest *)"
+    ]
+  }
+}

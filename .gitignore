@@ -1,0 +1,22 @@
+node_modules/
+dist/
+*.tsbuildinfo
+.DS_Store
+*.log
+.env
+.env.*
+!.env.example
+
+# runtime data
+.enter/
+~/.enter/
+
+# editor
+.vscode/
+.idea/
+*.swp
+*~
+
+# OS
+Thumbs.db
+desktop.ini

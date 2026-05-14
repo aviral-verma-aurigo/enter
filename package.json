@@ -1,0 +1,37 @@
+{
+  "name": "enter-monorepo",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "engines": { "node": ">=20" },
+  "workspaces": [
+    "packages/core",
+    "packages/cli",
+    "packages/teams-bot",
+    "packages/docs"
+  ],
+  "scripts": {
+    "build": "tsc -b packages/core packages/cli packages/teams-bot",
+    "build:core": "tsc -b packages/core",
+    "build:cli": "tsc -b packages/cli",
+    "build:bot": "tsc -b packages/teams-bot",
+    "clean": "tsc -b --clean packages/core packages/cli packages/teams-bot",
+    "typecheck": "tsc -b --noEmit packages/core packages/cli packages/teams-bot",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "lint": "eslint \"packages/*/src/**/*.ts\"",
+    "dev:cli": "tsx packages/cli/src/cli.ts",
+    "dev:bot": "tsx packages/teams-bot/src/server.ts",
+    "dev:docs": "npm run --workspace @enter/docs dev",
+    "build:docs": "npm run --workspace @enter/docs build"
+  },
+  "devDependencies": {
+    "typescript": "^5.6.0",
+    "tsx": "^4.19.0",
+    "vitest": "^2.1.0",
+    "@types/node": "^20.16.0",
+    "eslint": "^9.13.0",
+    "@typescript-eslint/parser": "^8.12.0",
+    "@typescript-eslint/eslint-plugin": "^8.12.0"
+  }
+}
