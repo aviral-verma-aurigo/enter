@@ -4,22 +4,16 @@ Feature work tracked but not in progress. Top of list = next likely pickup. When
 
 ## Close the cross-functional loop
 
-- **Confluence native tools** *(was task #35)*
-  `confluence_page_get` (by URL or space/title), `confluence_search` (CQL), `confluence_page_append_comment` (with requester attribution). Bot account + API token via `AtlassianTokenAuth`. Env: `CONFLUENCE_BASE_URL`, `CONFLUENCE_USER`, `CONFLUENCE_API_TOKEN`. Lift `AtlassianTokenAuth` from teams-bot to `@enter/core/integrations/confluence/` so the CLI registers too. Update `reference/tools.md`, `config/env.md`. Effort: 2-3 hrs.
-
 - **Aha! native tools** *(was task #36)*
   `aha_feature_get`, `aha_release_get`, `aha_feature_comment` (with requester attribution). `AhaApiKeyAuth` lifted to `@enter/core/integrations/aha/`. Env: `AHA_BASE_URL`, `AHA_API_KEY`. Effort: 1-2 hrs.
 
 ## Operational readiness — before wider rollout
 
-- **Audit + budget extensions for integrations** *(was task #37)*
-  `audit.db` columns for integration (`ado`/`confluence`/`aha`/`github`), action count per integration per channel per month, surface in `/healthz`. Capture `argsHash` + `durationMs` (currently empty). Optional configurable per-integration rate limits. Effort: 1-2 hrs.
-
 - **Per-user rate limits in bot**
   Currently only per-channel monthly token budget is enforced. Add per-user mentions/hour and per-user PRs/day caps. Useful before broad org rollout.
 
-- **CI workflow** *(GitHub Actions or ADO Pipelines)*
-  On push: `npm run build` + `npm test` + `npm run build:docs`. Block merges on failure. Catches the kinds of drift that the docs-update rule in CLAUDE.md can't enforce on its own.
+- **Branch protection on `main`** *(GitHub UI)*
+  Document at `packages/docs/src/content/docs/deploy/repo-settings.md` is shipped; the actual toggle is a one-time admin action in the GitHub repo settings or via the `gh` snippet documented there.
 
 ## UX polish
 

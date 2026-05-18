@@ -19,7 +19,7 @@ import { channelSessionKey } from "./channels/session-keys.js";
 import type { WorktreeManager } from "./channels/worktree-mgr.js";
 import type { ChannelConfig } from "./channels/channel-config.js";
 import type { GitHubAppAuth } from "./auth/github-app.js";
-import type { AuditLog } from "./obs/audit-log.js";
+import { hashArgs, inferIntegration, type AuditLog } from "./obs/audit-log.js";
 import { buildBotTools } from "./tools/index.js";
 import { estimateTokens } from "@enter/core";
 
@@ -226,18 +226,30 @@ export class EnterBot extends ActivityHandler {
     const toolNotes: { name: string; ok: boolean }[] = [];
     let approxTokensThisTurn = 0;
 
+    // Track each tool call's start time + args so audit gets real durationMs + argsHash.
+    const inflight = new Map<string, { startedAt: number; argsHash: string }>();
+
     const unsubscribe = runtime.agent.subscribe((event) => {
+      if (event.type === "tool_execution_start") {
+        inflight.set(event.toolCallId, {
+          startedAt: Date.now(),
+          argsHash: hashArgs(event.args),
+        });
+      }
       if (event.type === "tool_execution_end") {
         toolNotes.push({ name: event.toolName, ok: !event.isError });
+        const inflightEntry = inflight.get(event.toolCallId);
+        inflight.delete(event.toolCallId);
         this.deps.audit.append({
           timestamp: new Date().toISOString(),
           channelKey,
           userAadId: user?.aadObjectId ?? null,
           userName: user?.name ?? null,
           toolName: event.toolName,
-          argsHash: "",
+          integration: inferIntegration(event.toolName),
+          argsHash: inflightEntry?.argsHash ?? "",
           ok: !event.isError,
-          durationMs: 0,
+          durationMs: inflightEntry ? Date.now() - inflightEntry.startedAt : 0,
           ...(event.isError ? { errorMessage: "tool returned error" } : {}),
         });
       }

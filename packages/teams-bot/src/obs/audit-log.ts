@@ -1,6 +1,13 @@
 import Database, { type Database as DB } from "better-sqlite3";
+import crypto from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
+
+/**
+ * Logical grouping for a tool call. Inferred from the tool name by `inferIntegration`
+ * — none of the tool factories tags itself, so the mapping lives here.
+ */
+export type Integration = "ado" | "confluence" | "aha" | "github" | "core";
 
 export interface AuditEntry {
   timestamp: string;
@@ -8,6 +15,7 @@ export interface AuditEntry {
   userAadId: string | null;
   userName: string | null;
   toolName: string;
+  integration: Integration;
   argsHash: string;
   ok: boolean;
   durationMs: number;
@@ -20,6 +28,13 @@ export interface BudgetSnapshot {
   approxTokens: number;
 }
 
+export interface IntegrationUsage {
+  integration: Integration;
+  calls: number;
+  errors: number;
+  totalDurationMs: number;
+}
+
 const SCHEMA = `
 CREATE TABLE IF NOT EXISTS audit (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -28,6 +43,7 @@ CREATE TABLE IF NOT EXISTS audit (
   user_aad_id TEXT,
   user_name TEXT,
   tool_name TEXT NOT NULL,
+  integration TEXT NOT NULL DEFAULT 'core',
   args_hash TEXT NOT NULL,
   ok INTEGER NOT NULL,
   duration_ms INTEGER NOT NULL,
@@ -35,6 +51,7 @@ CREATE TABLE IF NOT EXISTS audit (
 );
 CREATE INDEX IF NOT EXISTS idx_audit_channel ON audit(channel_key);
 CREATE INDEX IF NOT EXISTS idx_audit_ts ON audit(timestamp);
+CREATE INDEX IF NOT EXISTS idx_audit_integration ON audit(integration);
 
 CREATE TABLE IF NOT EXISTS channel_budget (
   channel_key TEXT NOT NULL,
@@ -49,6 +66,32 @@ function currentYearMonth(): string {
   return `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, "0")}`;
 }
 
+/**
+ * Classify a tool by its name prefix. The mapping is intentionally pattern-based — adding
+ * a new ADO/Confluence/Aha! tool gets it categorized automatically.
+ */
+export function inferIntegration(toolName: string): Integration {
+  if (toolName.startsWith("ado_")) return "ado";
+  if (toolName.startsWith("confluence_")) return "confluence";
+  if (toolName.startsWith("aha_")) return "aha";
+  if (toolName.startsWith("git_") || toolName.startsWith("github_")) return "github";
+  return "core";
+}
+
+/**
+ * Stable hash of tool arguments for audit. Same args → same hash; never reversible
+ * (so it's safe to keep alongside the audit row even if args contain sensitive text).
+ */
+export function hashArgs(args: unknown): string {
+  let normalized: string;
+  try {
+    normalized = JSON.stringify(args ?? null);
+  } catch {
+    normalized = String(args);
+  }
+  return crypto.createHash("sha1").update(normalized).digest("hex").slice(0, 16);
+}
+
 export class AuditLog {
   readonly db: DB;
   constructor(dbPath: string) {
@@ -56,13 +99,24 @@ export class AuditLog {
     this.db = new Database(dbPath);
     this.db.pragma("journal_mode = WAL");
     this.db.exec(SCHEMA);
+    // Best-effort migration: if integration column is missing on an old DB, add it.
+    this.maybeAddIntegrationColumn();
+  }
+
+  private maybeAddIntegrationColumn(): void {
+    const cols = this.db.prepare(`PRAGMA table_info(audit)`).all() as Array<{ name: string }>;
+    const hasIntegration = cols.some((c) => c.name === "integration");
+    if (!hasIntegration) {
+      this.db.exec(`ALTER TABLE audit ADD COLUMN integration TEXT NOT NULL DEFAULT 'core'`);
+      this.db.exec(`CREATE INDEX IF NOT EXISTS idx_audit_integration ON audit(integration)`);
+    }
   }
 
   append(entry: AuditEntry): void {
     this.db
       .prepare(
-        `INSERT INTO audit (timestamp, channel_key, user_aad_id, user_name, tool_name, args_hash, ok, duration_ms, error_message)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        `INSERT INTO audit (timestamp, channel_key, user_aad_id, user_name, tool_name, integration, args_hash, ok, duration_ms, error_message)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       )
       .run(
         entry.timestamp,
@@ -70,6 +124,7 @@ export class AuditLog {
         entry.userAadId,
         entry.userName,
         entry.toolName,
+        entry.integration,
         entry.argsHash,
         entry.ok ? 1 : 0,
         entry.durationMs,
@@ -104,6 +159,75 @@ export class AuditLog {
       )
       .get(channelKey, ym);
     return { channelKey, yearMonth: ym, approxTokens: row?.approx_tokens ?? 0 };
+  }
+
+  /**
+   * Per-integration tool-call stats for a channel since the given timestamp.
+   * If `sinceIso` is omitted, returns the all-time view.
+   */
+  integrationUsage(channelKey: string, sinceIso?: string): IntegrationUsage[] {
+    const params: unknown[] = [channelKey];
+    let where = "channel_key = ?";
+    if (sinceIso) {
+      where += " AND timestamp >= ?";
+      params.push(sinceIso);
+    }
+    const rows = this.db
+      .prepare(
+        `SELECT integration,
+                COUNT(*) AS calls,
+                SUM(CASE WHEN ok = 0 THEN 1 ELSE 0 END) AS errors,
+                COALESCE(SUM(duration_ms), 0) AS total_ms
+         FROM audit
+         WHERE ${where}
+         GROUP BY integration
+         ORDER BY calls DESC`,
+      )
+      .all(...params) as Array<{
+        integration: Integration;
+        calls: number;
+        errors: number;
+        total_ms: number;
+      }>;
+    return rows.map((r) => ({
+      integration: r.integration,
+      calls: r.calls,
+      errors: r.errors,
+      totalDurationMs: r.total_ms,
+    }));
+  }
+
+  /** All-channels rollup, for /healthz. */
+  globalIntegrationUsage(sinceIso?: string): IntegrationUsage[] {
+    const params: unknown[] = [];
+    let where = "1=1";
+    if (sinceIso) {
+      where += " AND timestamp >= ?";
+      params.push(sinceIso);
+    }
+    const rows = this.db
+      .prepare(
+        `SELECT integration,
+                COUNT(*) AS calls,
+                SUM(CASE WHEN ok = 0 THEN 1 ELSE 0 END) AS errors,
+                COALESCE(SUM(duration_ms), 0) AS total_ms
+         FROM audit
+         WHERE ${where}
+         GROUP BY integration
+         ORDER BY calls DESC`,
+      )
+      .all(...params) as Array<{
+        integration: Integration;
+        calls: number;
+        errors: number;
+        total_ms: number;
+      }>;
+    return rows.map((r) => ({
+      integration: r.integration,
+      calls: r.calls,
+      errors: r.errors,
+      totalDurationMs: r.total_ms,
+    }));
   }
 
   close(): void {

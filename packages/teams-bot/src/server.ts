@@ -88,6 +88,7 @@ async function main(): Promise<void> {
   });
 
   app.get("/healthz", (_req, res) => {
+    const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
     res.json({
       status: "ok",
       teams: env.appId ? "configured" : "missing",
@@ -97,6 +98,7 @@ async function main(): Promise<void> {
       aha: env.aha ? "configured" : "missing",
       worktreesRoot: env.worktreesRoot,
       channelAllowlist: env.channelAllowlist ? `${env.channelAllowlist.length} channels` : "open",
+      usage7d: audit.globalIntegrationUsage(sevenDaysAgo),
     });
   });
 
