@@ -1,0 +1,52 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+# Cancel superseded runs on the same branch when new commits land.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build-test-docs:
+    name: build · test · docs (node ${{ matrix.node-version }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        node-version: ["20.x", "24.x"]
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node ${{ matrix.node-version }}
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node-version }}
+          cache: npm
+
+      - name: Install dependencies (prefer prebuilds for native modules)
+        run: npm ci --build-from-source=false
+
+      - name: Typecheck and build (core + cli + teams-bot)
+        run: npm run build
+
+      - name: Run tests
+        run: npm test
+
+      - name: Build documentation site
+        run: npm run build:docs
+
+      - name: Upload docs artifact (latest Node only)
+        if: matrix.node-version == '24.x'
+        uses: actions/upload-artifact@v4
+        with:
+          name: docs-dist
+          path: packages/docs/dist
+          retention-days: 14
+          if-no-files-found: error
