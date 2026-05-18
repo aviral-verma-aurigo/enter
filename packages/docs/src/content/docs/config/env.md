@@ -66,15 +66,17 @@ ADO tools (`ado_work_item_get`, `ado_work_item_comment`, `ado_work_item_link_pr`
 
 The service principal needs Reader/Contributor access on the ADO organization (added under Organization settings → Users). The CLI prefers `ADO_PAT` if both modes' vars are set. If neither is set, ADO tools are not registered and `/healthz` (bot only) reports `"ado": "missing"`.
 
-## Teams Bot — Confluence Cloud (service account)
+## Confluence Cloud (read by CLI and Teams bot)
+
+Confluence tools (`confluence_page_get`, `confluence_search`, `confluence_page_append_comment`) register in both `enter` and `enter-bot` when these are set.
 
 | Variable | Effect |
 |---|---|
-| `CONFLUENCE_BASE_URL` | Confluence Cloud base URL, e.g. `https://your.atlassian.net/wiki`. |
+| `CONFLUENCE_BASE_URL` | Confluence Cloud base URL including `/wiki`, e.g. `https://your.atlassian.net/wiki`. |
 | `CONFLUENCE_USER` | Bot account email. |
 | `CONFLUENCE_API_TOKEN` | API token from id.atlassian.com → Manage account → Security → API tokens. |
 
-All three must be set together. If any are missing, Confluence tools are disabled. The bot account needs read access to the spaces you want the bot to query and write access if you want it to append comments.
+All three must be set together. If any are missing, Confluence tools are not registered. The bot account needs read access to the spaces you want the bot to query and write access if you want it to append comments. The CLI and the bot share the same shared-credential pattern — no per-user OAuth.
 
 ## Teams Bot — Aha! (service-account API key)
 

@@ -66,6 +66,16 @@ Auth: `ADO_PAT` (fastest, CLI-friendly) or `ADO_TENANT_ID` + `ADO_CLIENT_ID` + `
 Every write tool appends `— Requested by <name>` as a System.History entry (visible in the work item's Discussion tab). Auditable in ADO without needing the bot's own logs.
 :::
 
+### Confluence Cloud
+
+| Name | Description | Parameters |
+|---|---|---|
+| `confluence_page_get` | Fetch a page by numeric id or URL. Returns title, body (plain text by default; raw storage markup with `format: "storage"`), version, and the webui link. Use to pull PRD context, runbooks, ADRs. | `id_or_url`, `format?` |
+| `confluence_search` | Run a CQL (Confluence Query Language) search. Returns matching page titles, ids, and space keys. Pair with `confluence_page_get` for full bodies. | `cql`, `limit?` |
+| `confluence_page_append_comment` | Add a footer comment to a Confluence page. Identity authors; human requester appended as attribution. Body is HTML-escaped before posting. | `page_id_or_url`, `body` |
+
+Auth: bot account email + API token (`CONFLUENCE_BASE_URL` + `CONFLUENCE_USER` + `CONFLUENCE_API_TOKEN`). Same shared-credential pattern used for ADO writes — works org-wide with no per-user OAuth.
+
 ## Teams bot only
 
 These tools are registered only in `@enter/teams-bot`. They never run in the CLI. They require a GitHub App.

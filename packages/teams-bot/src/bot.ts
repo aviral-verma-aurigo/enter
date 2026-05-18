@@ -30,9 +30,10 @@ export interface EnterBotDeps {
   audit: AuditLog;
   auth: GitHubAppAuth | null;
   adoAuth: import("@enter/core").EntraServicePrincipalAuth | null;
-  confluenceAuth: import("./auth/index.js").AtlassianTokenAuth | null;
+  confluenceAuth: import("@enter/core").AtlassianTokenAuth | null;
   ahaAuth: import("./auth/index.js").AhaApiKeyAuth | null;
   adoOrgUrl?: string;
+  confluenceBaseUrl?: string;
   monthlyTokenBudgetPerChannel: number;
   allowedRepos: string[];
 }
@@ -77,6 +78,9 @@ const BOT_ALLOWED_TOOLS_EXTRA = [
   "ado_work_item_update",
   "ado_work_item_comment",
   "ado_work_item_link",
+  "confluence_page_get",
+  "confluence_search",
+  "confluence_page_append_comment",
   "ado_work_item_link_pr",
 ];
 
@@ -139,6 +143,8 @@ export class EnterBot extends ActivityHandler {
       auth: this.deps.auth,
       adoAuth: this.deps.adoAuth,
       adoOrgUrl: this.deps.adoOrgUrl ?? null,
+      confluenceAuth: this.deps.confluenceAuth,
+      confluenceBaseUrl: this.deps.confluenceBaseUrl ?? null,
       requestedBy: () => userTag,
       allowedRepos: this.deps.allowedRepos,
       onCloned: (worktreePath) => {

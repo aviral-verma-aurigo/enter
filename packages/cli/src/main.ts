@@ -17,6 +17,8 @@ import {
   EntraServicePrincipalAuth,
   adoPatAuth,
   buildAdoTools,
+  AtlassianTokenAuth,
+  buildConfluenceTools,
   type AdoAuthorizer,
   type ToolContext,
 } from "@enter/core";
@@ -112,8 +114,24 @@ export async function main(argv: string[]): Promise<void> {
       extraTools.push(
         ...buildAdoTools({ auth: adoAuth, orgUrl: adoOrgUrl, requestedBy: () => requesterTag }),
       );
-      logger.info("Registered ADO tools", { count: 4, orgUrl: adoOrgUrl });
+      logger.info("Registered ADO tools", { count: 7, orgUrl: adoOrgUrl });
     }
+  }
+
+  const confluenceBase = process.env["CONFLUENCE_BASE_URL"];
+  const confluenceUser = process.env["CONFLUENCE_USER"];
+  const confluenceToken = process.env["CONFLUENCE_API_TOKEN"];
+  if (confluenceBase && confluenceUser && confluenceToken) {
+    const auth = new AtlassianTokenAuth({
+      baseUrl: confluenceBase,
+      user: confluenceUser,
+      token: confluenceToken,
+    });
+    const requesterTag = `${os.userInfo().username}@cli`;
+    extraTools.push(
+      ...buildConfluenceTools({ auth, baseUrl: confluenceBase, requestedBy: () => requesterTag }),
+    );
+    logger.info("Registered Confluence tools", { count: 3, baseUrl: confluenceBase });
   }
 
   const { agent } = buildAgent({

@@ -75,6 +75,7 @@ async function main(): Promise<void> {
     confluenceAuth,
     ahaAuth,
     ...(env.ado ? { adoOrgUrl: env.ado.orgUrl } : {}),
+    ...(env.confluence ? { confluenceBaseUrl: env.confluence.baseUrl } : {}),
     monthlyTokenBudgetPerChannel: env.monthlyTokenBudgetPerChannel,
     allowedRepos: env.defaultAllowedRepos,
   });

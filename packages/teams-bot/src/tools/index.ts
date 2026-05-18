@@ -1,6 +1,11 @@
 import type { AgentTool } from "@earendil-works/pi-agent-core";
 import { spawn } from "node:child_process";
-import { buildAdoTools, type EntraServicePrincipalAuth } from "@enter/core";
+import {
+  buildAdoTools,
+  buildConfluenceTools,
+  type EntraServicePrincipalAuth,
+  type AtlassianAuthorizer,
+} from "@enter/core";
 import type { GitHubAppAuth } from "../auth/github-app.js";
 import type { WorktreeManager } from "../channels/worktree-mgr.js";
 import { gitCloneTool } from "./git-clone.js";
@@ -16,6 +21,8 @@ export interface BuildBotToolsOptions {
   auth: GitHubAppAuth | null;
   adoAuth: EntraServicePrincipalAuth | null;
   adoOrgUrl: string | null;
+  confluenceAuth: AtlassianAuthorizer | null;
+  confluenceBaseUrl: string | null;
   requestedBy: () => string;
   allowedRepos: string[];
   /** Called when a clone completes so the bot can mutate ctx.cwd. */
@@ -65,6 +72,16 @@ export function buildBotTools(options: BuildBotToolsOptions): AgentTool[] {
         channelKey: options.channelKey,
         worktrees: options.worktrees,
         auth: options.auth,
+      }),
+    );
+  }
+
+  if (options.confluenceAuth && options.confluenceBaseUrl) {
+    tools.push(
+      ...buildConfluenceTools({
+        auth: options.confluenceAuth,
+        baseUrl: options.confluenceBaseUrl,
+        requestedBy: options.requestedBy,
       }),
     );
   }

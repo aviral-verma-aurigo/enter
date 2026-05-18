@@ -42,3 +42,4 @@ export * from "./util/errors.js";
 
 // Integrations (CLI + bot can both register these)
 export * from "./integrations/ado/index.js";
+export * from "./integrations/confluence/index.js";
