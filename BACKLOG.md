@@ -4,9 +4,6 @@ Feature work tracked but not in progress. Top of list = next likely pickup. When
 
 ## Close the cross-functional loop
 
-- **Auto-link ADO work items in `github_pr_open`** *(was task #34)*
-  Detect `AB#NNNN` and bare `#NNNN` patterns in the agent's prompt context; inject ADO work-item URLs into the PR body footer. Best-effort post a comment back to the linked work item with the PR URL ("PR opened: ..."). Zero extra LLM cost — pattern-detect in the tool wrapper. Effort: ~30-60 min.
-
 - **Confluence native tools** *(was task #35)*
   `confluence_page_get` (by URL or space/title), `confluence_search` (CQL), `confluence_page_append_comment` (with requester attribution). Bot account + API token via `AtlassianTokenAuth`. Env: `CONFLUENCE_BASE_URL`, `CONFLUENCE_USER`, `CONFLUENCE_API_TOKEN`. Lift `AtlassianTokenAuth` from teams-bot to `@enter/core/integrations/confluence/` so the CLI registers too. Update `reference/tools.md`, `config/env.md`. Effort: 2-3 hrs.
 
