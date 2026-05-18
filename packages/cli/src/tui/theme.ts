@@ -1,11 +1,11 @@
 import type { EditorTheme } from "@earendil-works/pi-tui";
-import { color, colorize } from "./color.js";
+import { brand, color, colorize } from "./color.js";
 
 export function editorTheme(): EditorTheme {
   return {
-    borderColor: colorize(color.cyan),
+    borderColor: colorize(brand.slate),
     selectList: {
-      selectedPrefix: colorize(color.cyan),
+      selectedPrefix: colorize(brand.slate),
       selectedText: colorize(color.bold),
       description: colorize(color.dim),
       scrollInfo: colorize(color.dim),

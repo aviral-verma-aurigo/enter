@@ -38,7 +38,18 @@ export async function runInteractiveMode(opts: InteractiveOptions): Promise<void
     }
   });
 
-  process.stdout.write("Enter — interactive mode. Type a message, or /help. /exit to quit.\n");
+  const wantColor =
+    process.stdout.isTTY === true &&
+    process.env["NO_COLOR"] === undefined &&
+    process.env["ENTER_NO_COLOR"] !== "1";
+  const truecolor =
+    process.env["COLORTERM"] === "truecolor" || process.env["COLORTERM"] === "24bit";
+  const wordmark = wantColor
+    ? truecolor
+      ? "\x1b[1;38;2;148;163;184mEnter\x1b[0m"
+      : "\x1b[1;37mEnter\x1b[0m"
+    : "Enter";
+  process.stdout.write(`${wordmark} — interactive mode. Type a message, or /help. /exit to quit.\n`);
   rl.prompt();
 
   let busy = false;

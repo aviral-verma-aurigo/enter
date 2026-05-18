@@ -1,16 +1,17 @@
 import {
   Container,
   Editor,
-  Loader,
   ProcessTerminal,
+  Spacer,
   Text,
   TUI,
 } from "@earendil-works/pi-tui";
 import type { Agent } from "@earendil-works/pi-agent-core";
-import { color, colorize } from "../tui/color.js";
+import { brand, color, colorize } from "../tui/color.js";
+import { renderBanner } from "../tui/banner.js";
 import { editorTheme } from "../tui/theme.js";
+import { MinimalLoader } from "../tui/minimal-loader.js";
 import { Transcript } from "../tui/transcript.js";
-import { Rule } from "../tui/rule.js";
 import { dispatchSlash, type SlashContext } from "../slash/index.js";
 
 export interface TuiOptions {
@@ -18,46 +19,54 @@ export interface TuiOptions {
   slashContext: SlashContext;
   modelLabel: string;
   cwd: string;
+  version: string;
 }
 
-const C_HEADER = colorize(color.bold);
 const C_DIM = colorize(color.dim);
-const C_SPINNER = colorize(color.cyan);
+const C_SPINNER = colorize(brand.slate);
 
 /**
- * Rich interactive mode. Layout (top to bottom):
+ * Rich interactive mode. Premium-minimal layout — no horizontal rules,
+ * whitespace separates sections. Loader is hidden when idle.
  *
- *   Enter · anthropic/claude-opus-4-7 · session 01KR…  (header)
- *   ──────────────────────────────────────────────────
- *   ◆ Hello from Enter.                                  (transcript)
+ *   ███████ ███    ██ ████████ ███████ ██████      (banner — slate)
+ *   ██      ████   ██    ██    ██      ██   ██
+ *   …
+ *   an autonomous teammate                          (tagline — dim)
+ *   v0.1.0 · anthropic/claude-opus-4-7 · ~/…/enter  (metadata — dim)
+ *   tip: type a message — or /help for commands …  (tip — dim)
+ *
+ *   ◆ Hello from Enter.                             (transcript)
  *   » what time is it?
- *   ◆ It's 2026-05-13 …                                  (assistant streaming)
- *   · read ok                                            (tool events)
- *   ──────────────────────────────────────────────────
- *   ⠋ thinking…                                          (loader; hidden when idle)
- *   » █ _input editor_
+ *   ◆ It's 2026-05-13 …                             (assistant streaming)
+ *
+ *     ⠋ thinking…                                   (loader; hidden when idle)
+ *   ─────────────────────────────────────────────  (editor top border — slate)
+ *   █ _input editor_
+ *   ─────────────────────────────────────────────  (editor bottom border)
  */
 export async function runTuiMode(opts: TuiOptions): Promise<void> {
   const terminal = new ProcessTerminal();
   const tui = new TUI(terminal, /* showHardwareCursor */ true);
 
-  const headerLine = C_HEADER("Enter") + C_DIM(` · ${opts.modelLabel} · session ${opts.slashContext.sessionId}`);
-  const header = new Text(headerLine, 1, 0);
+  const headerText = renderBanner({
+    version: opts.version,
+    modelLabel: opts.modelLabel,
+    cwd: opts.cwd,
+  });
+  const header = new Text(headerText, 1, 0);
 
   const transcript = new Transcript();
 
-  const loader = new Loader(tui, C_SPINNER, C_DIM, "idle", { frames: ["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"], intervalMs: 80 });
-  loader.start(); // we'll toggle by message
+  const loader = new MinimalLoader(C_SPINNER, C_DIM, () => tui.requestRender());
 
   const editor = new Editor(tui, editorTheme(), { paddingX: 1 });
 
   const container = new Container();
   container.addChild(header);
-  container.addChild(new Rule());
+  container.addChild(new Spacer(1));
   container.addChild(transcript);
-  container.addChild(new Rule());
   container.addChild(loader);
-  container.addChild(new Rule());
   container.addChild(editor);
   tui.addChild(container);
   tui.setFocus(editor);
@@ -69,7 +78,7 @@ export async function runTuiMode(opts: TuiOptions): Promise<void> {
 
   const setBusy = (b: boolean, message?: string) => {
     busy = b;
-    loader.setMessage(b ? (message ?? "thinking…") : C_DIM("idle"));
+    loader.setMessage(b ? (message ?? "thinking…") : "");
     tui.requestRender();
   };
 
@@ -106,8 +115,7 @@ export async function runTuiMode(opts: TuiOptions): Promise<void> {
     }
   });
 
-  // Bootstrap a friendly opener and instructions in the transcript.
-  transcript.pushSystem("Welcome to Enter. Type a message — or /help for slash commands. Ctrl+C twice to quit.");
+  // Banner already shows the welcome / tip line above the transcript.
   setBusy(false);
 
   editor.onSubmit = (text) => {

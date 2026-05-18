@@ -18,6 +18,14 @@ enter help
 
 If `[prompt...]` is given without `--print`, the prompt is fed in and then the interactive UI takes over. With `--print`, the agent runs to completion and exits.
 
+## Startup banner
+
+In TTY mode, `enter` opens with a slate-gray ANSI-Shadow `ENTER` wordmark, the tagline "an autonomous teammate", and a metadata row showing the version, the active provider/model, and the current working directory (with `$HOME` collapsed to `~` and long paths truncated to `~/…/last-two-segments`). A tip line below the metadata reminds you that `/help` lists slash commands and that Ctrl+C twice exits.
+
+The rest of the chrome is intentionally minimal: no horizontal rules, just whitespace. The status spinner is invisible while the agent is idle and only appears when the agent is thinking or running a tool. The input editor sits at the bottom with a slate-colored border that matches the wordmark.
+
+Terminals narrower than 47 columns collapse the banner to a single compact header so nothing wraps. Truecolor terminals (Windows Terminal, iTerm2, VS Code, recent gnome-terminal — anything that sets `COLORTERM=truecolor` or `COLORTERM=24bit`) render the wordmark in soft slate gray; older terminals fall back to plain ANSI white. Set `NO_COLOR=1`, `ENTER_NO_COLOR=1`, or pass `--no-color` to strip all color.
+
 ## Flags
 
 | Flag | Meaning |
