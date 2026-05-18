@@ -33,3 +33,17 @@ export const NO_COLOR = process.env["NO_COLOR"] !== undefined || process.env["EN
 export function colorize(fn: (s: string) => string): (s: string) => string {
   return NO_COLOR ? (s) => s : fn;
 }
+
+const TRUECOLOR =
+  process.env["COLORTERM"] === "truecolor" || process.env["COLORTERM"] === "24bit";
+
+function rgb(r: number, g: number, b: number, ansiFallback: (s: string) => string): (s: string) => string {
+  if (!TRUECOLOR) return ansiFallback;
+  const open = `${ESC}38;2;${r};${g};${b}m`;
+  const close = `${ESC}39m`;
+  return (s) => `${open}${s}${close}`;
+}
+
+export const brand = {
+  slate: rgb(148, 163, 184, color.white),
+};

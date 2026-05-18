@@ -193,6 +193,7 @@ export async function main(argv: string[]): Promise<void> {
             slashContext,
             modelLabel: `${config.provider}/${config.model}`,
             cwd,
+            version: PKG_VERSION,
           });
         } else {
           await runInteractiveMode({ agent, slashContext });
