@@ -6,7 +6,8 @@ Instructions for Claude Code working in this repo. Treat these as hard rules.
 
 Any change to behavior in `packages/{core,cli,teams-bot}` must land with a corresponding update under `packages/docs/src/content/docs/`. The rules:
 
-- New tool → add a row to `reference/tools.md`.
+- New tool → add a row to `reference/tools.md`. If the tool belongs to an integration (ADO/Confluence/Aha!/GitHub/MCP), the canonical home is `integrations/<name>.md` — update it there too; `reference/tools.md` stays the flat alphabetical index and links back.
+- New integration → add a page under `integrations/<name>.md`, add it to the table on `integrations/index.md`, and add a sidebar entry in `packages/docs/astro.config.mjs`. Auth env vars also go in `config/env.md`.
 - New CLI flag → update `usage/cli.md` and the help text in `packages/cli/src/args.ts`.
 - New env var → update `config/env.md`.
 - New slash command → update `usage/slash.md`.

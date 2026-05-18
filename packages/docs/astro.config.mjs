@@ -51,6 +51,17 @@ export default defineConfig({
           ],
         },
         {
+          label: "Integrations",
+          items: [
+            { label: "Overview", slug: "integrations" },
+            { label: "Azure DevOps", slug: "integrations/ado" },
+            { label: "Confluence Cloud", slug: "integrations/confluence" },
+            { label: "Aha!", slug: "integrations/aha" },
+            { label: "GitHub", slug: "integrations/github" },
+            { label: "Model Context Protocol", slug: "integrations/mcp" },
+          ],
+        },
+        {
           label: "Reference",
           items: [
             { label: "Tool Reference", slug: "reference/tools" },
