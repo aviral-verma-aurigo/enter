@@ -16,14 +16,14 @@ CREATE TABLE IF NOT EXISTS memories (
   path TEXT NOT NULL,
   project_hash TEXT,
   channel_key TEXT,
+  user_key TEXT,
   tags TEXT NOT NULL DEFAULT '[]',
   created TEXT NOT NULL,
   updated TEXT NOT NULL,
   hits INTEGER NOT NULL DEFAULT 0
 );
-CREATE UNIQUE INDEX IF NOT EXISTS idx_type_name_scope
-  ON memories(type, name, COALESCE(project_hash,''), COALESCE(channel_key,''));
 CREATE INDEX IF NOT EXISTS idx_channel ON memories(channel_key);
+CREATE INDEX IF NOT EXISTS idx_user ON memories(user_key);
 
 CREATE VIRTUAL TABLE IF NOT EXISTS memories_fts USING fts5(
   name, summary, body, tags,
@@ -55,6 +55,7 @@ export interface UpsertMemoryInput {
   path: string;
   projectHash?: string | null;
   channelKey?: string | null;
+  userKey?: string | null;
   tags?: string[];
 }
 
@@ -64,6 +65,7 @@ export interface RecallOptions {
   scope?: RecallScope;
   projectHash?: string | null;
   channelKey?: string | null;
+  userKey?: string | null;
 }
 
 function isMemoryType(value: unknown): value is MemoryType {
@@ -84,6 +86,7 @@ function rowToRecord(row: Record<string, unknown>): MemoryRecord {
     path: String(row["path"]),
     projectHash: (row["project_hash"] as string | null) ?? null,
     channelKey: (row["channel_key"] as string | null) ?? null,
+    userKey: (row["user_key"] as string | null) ?? null,
     tags: JSON.parse(String(row["tags"] ?? "[]")) as string[],
     created: String(row["created"]),
     updated: String(row["updated"]),
@@ -106,6 +109,18 @@ export class MemoryStore {
     db.pragma("journal_mode = WAL");
     db.pragma("foreign_keys = ON");
     db.exec(SCHEMA);
+    // Migrate pre-user_key databases: add column + rebuild the unique index so
+    // identical-named user memories from different teammates can coexist.
+    const cols = db.prepare(`PRAGMA table_info(memories)`).all() as Array<{ name: string }>;
+    if (!cols.some((c) => c.name === "user_key")) {
+      db.exec(`ALTER TABLE memories ADD COLUMN user_key TEXT`);
+      db.exec(`CREATE INDEX IF NOT EXISTS idx_user ON memories(user_key)`);
+    }
+    db.exec(`DROP INDEX IF EXISTS idx_type_name_scope`);
+    db.exec(
+      `CREATE UNIQUE INDEX IF NOT EXISTS idx_type_name_scope
+         ON memories(type, name, COALESCE(project_hash,''), COALESCE(channel_key,''), COALESCE(user_key,''))`,
+    );
     return new MemoryStore(db, dbPath);
   }
 
@@ -116,17 +131,19 @@ export class MemoryStore {
   upsert(input: UpsertMemoryInput): MemoryRecord {
     const now = new Date().toISOString();
     const existing = this.db
-      .prepare<[string, string, string, string], Record<string, unknown>>(
+      .prepare<[string, string, string, string, string], Record<string, unknown>>(
         `SELECT * FROM memories
          WHERE type = ? AND name = ?
            AND COALESCE(project_hash,'') = ?
-           AND COALESCE(channel_key,'') = ?`,
+           AND COALESCE(channel_key,'') = ?
+           AND COALESCE(user_key,'') = ?`,
       )
       .get(
         input.type,
         input.name,
         input.projectHash ?? "",
         input.channelKey ?? "",
+        input.userKey ?? "",
       );
 
     const id = existing ? String(existing["id"]) : ulid();
@@ -135,8 +152,8 @@ export class MemoryStore {
 
     this.db
       .prepare(
-        `INSERT INTO memories (id, type, name, summary, body, path, project_hash, channel_key, tags, created, updated, hits)
-         VALUES (@id, @type, @name, @summary, @body, @path, @projectHash, @channelKey, @tags, @created, @updated, COALESCE((SELECT hits FROM memories WHERE id = @id), 0))
+        `INSERT INTO memories (id, type, name, summary, body, path, project_hash, channel_key, user_key, tags, created, updated, hits)
+         VALUES (@id, @type, @name, @summary, @body, @path, @projectHash, @channelKey, @userKey, @tags, @created, @updated, COALESCE((SELECT hits FROM memories WHERE id = @id), 0))
          ON CONFLICT(id) DO UPDATE SET
            summary = excluded.summary,
            body = excluded.body,
@@ -153,6 +170,7 @@ export class MemoryStore {
         path: input.path,
         projectHash: input.projectHash ?? null,
         channelKey: input.channelKey ?? null,
+        userKey: input.userKey ?? null,
         tags: tagsJson,
         created,
         updated: now,
@@ -172,15 +190,22 @@ export class MemoryStore {
     return row ? rowToRecord(row) : null;
   }
 
-  getByName(type: MemoryType, name: string, projectHash: string | null = null, channelKey: string | null = null): MemoryRecord | null {
+  getByName(
+    type: MemoryType,
+    name: string,
+    projectHash: string | null = null,
+    channelKey: string | null = null,
+    userKey: string | null = null,
+  ): MemoryRecord | null {
     const row = this.db
-      .prepare<[string, string, string, string], Record<string, unknown>>(
+      .prepare<[string, string, string, string, string], Record<string, unknown>>(
         `SELECT * FROM memories
          WHERE type = ? AND name = ?
            AND COALESCE(project_hash,'') = ?
-           AND COALESCE(channel_key,'') = ?`,
+           AND COALESCE(channel_key,'') = ?
+           AND COALESCE(user_key,'') = ?`,
       )
-      .get(type, name, projectHash ?? "", channelKey ?? "");
+      .get(type, name, projectHash ?? "", channelKey ?? "", userKey ?? "");
     return row ? rowToRecord(row) : null;
   }
 
@@ -189,7 +214,7 @@ export class MemoryStore {
     return res.changes > 0;
   }
 
-  list(filter: { type?: MemoryType; channelKey?: string | null } = {}): MemoryRecord[] {
+  list(filter: { type?: MemoryType; channelKey?: string | null; userKey?: string | null } = {}): MemoryRecord[] {
     const where: string[] = [];
     const params: unknown[] = [];
     if (filter.type) {
@@ -202,6 +227,14 @@ export class MemoryStore {
       } else {
         where.push("channel_key = ?");
         params.push(filter.channelKey);
+      }
+    }
+    if (filter.userKey !== undefined) {
+      if (filter.userKey === null) {
+        where.push("user_key IS NULL");
+      } else {
+        where.push("user_key = ?");
+        params.push(filter.userKey);
       }
     }
     const sql = `SELECT * FROM memories${where.length ? " WHERE " + where.join(" AND ") : ""} ORDER BY updated DESC`;
@@ -226,12 +259,15 @@ export class MemoryStore {
     } else if (scope === "project" && options.projectHash) {
       where.push("(m.project_hash = ? OR m.project_hash IS NULL)");
       params.push(options.projectHash);
+    } else if (scope === "user" && options.userKey) {
+      where.push("m.user_key = ?");
+      params.push(options.userKey);
     } else if (scope === "global") {
-      where.push("m.channel_key IS NULL AND m.project_hash IS NULL");
+      where.push("m.channel_key IS NULL AND m.project_hash IS NULL AND m.user_key IS NULL");
     }
 
     const sql = `
-      SELECT m.id, m.type, m.name, m.summary, m.path, m.channel_key, m.project_hash,
+      SELECT m.id, m.type, m.name, m.summary, m.path, m.channel_key, m.project_hash, m.user_key,
              snippet(memories_fts, 2, '<<', '>>', '…', 12) AS snippet
       FROM memories m
       JOIN memories_fts ON memories_fts.rowid = m.rowid
@@ -256,6 +292,7 @@ export class MemoryStore {
         path: String(row["path"]),
         channelKey: (row["channel_key"] as string | null) ?? null,
         projectHash: (row["project_hash"] as string | null) ?? null,
+        userKey: (row["user_key"] as string | null) ?? null,
       };
     });
 

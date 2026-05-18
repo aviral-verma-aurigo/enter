@@ -55,6 +55,14 @@ export const UiConfigSchema = Type.Object({
   renderer: Type.Union([Type.Literal("rich"), Type.Literal("plain")]),
 });
 
+export const McpServerSchema = Type.Object({
+  command: Type.String({ minLength: 1 }),
+  args: Type.Optional(Type.Array(Type.String())),
+  env: Type.Optional(Type.Record(Type.String(), Type.String())),
+  description: Type.Optional(Type.String()),
+});
+export type McpServer = Static<typeof McpServerSchema>;
+
 export const EnterConfigSchema = Type.Object({
   provider: Type.String(),
   model: Type.String(),
@@ -65,6 +73,8 @@ export const EnterConfigSchema = Type.Object({
   subagent: SubagentConfigSchema,
   tools: ToolsConfigSchema,
   ui: UiConfigSchema,
+  /** External MCP (Model Context Protocol) servers spawned at startup. */
+  mcpServers: Type.Optional(Type.Record(Type.String(), McpServerSchema)),
 });
 
 export type EnterConfig = Static<typeof EnterConfigSchema>;
@@ -86,4 +96,5 @@ export const DEFAULT_CONFIG: EnterConfig = {
     webFetch: { timeoutMs: 30_000, maxBytes: 1_048_576 },
   },
   ui: { color: true, renderer: "rich" },
+  // mcpServers omitted by default — opt-in feature, off until configured.
 };

@@ -42,7 +42,7 @@ Additional provider keys depend on which model provider you're using (e.g. `OPEN
 | `GITHUB_APP_PRIVATE_KEY` | Alternative: PEM contents inline (supports `\n` escape). |
 | `GITHUB_APP_INSTALLATION_ID` | Installation ID. Optional — auto-discovered if omitted. |
 
-If `GITHUB_APP_ID` is unset, GitHub-backed tools (`git_clone`, `git_push`, `github_pr_open`, `github_pr_comment`) refuse with a configuration error.
+If `GITHUB_APP_ID` is unset, GitHub-backed tools (`git_clone`, `git_push`, `github_pr_open`, `github_pr_comment`, `github_pr_fetch`, `github_pr_review`) refuse with a configuration error.
 
 ## Azure DevOps (read by CLI and Teams bot)
 
@@ -78,14 +78,16 @@ Confluence tools (`confluence_page_get`, `confluence_search`, `confluence_page_a
 
 All three must be set together. If any are missing, Confluence tools are not registered. The bot account needs read access to the spaces you want the bot to query and write access if you want it to append comments. The CLI and the bot share the same shared-credential pattern — no per-user OAuth.
 
-## Teams Bot — Aha! (service-account API key)
+## Aha! (read by CLI and Teams bot)
+
+Aha! tools (`aha_feature_get`, `aha_release_get`, `aha_feature_comment`) register in both `enter` and `enter-bot` when these are set.
 
 | Variable | Effect |
 |---|---|
 | `AHA_BASE_URL` | Aha! instance URL, e.g. `https://your.aha.io`. |
 | `AHA_API_KEY` | API key from Aha! → Settings → Account → API. |
 
-Both must be set together. If either is missing, Aha! tools are disabled.
+Both must be set together. If either is missing, Aha! tools are not registered.
 
 ## Teams Bot — operational
 

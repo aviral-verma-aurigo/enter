@@ -38,6 +38,7 @@ function bootstrap(): {
     cwd: tmpHome,
     projectHash: null,
     channelKey: null,
+    userKey: null,
   };
   return { ctx, paths, memory, graph };
 }

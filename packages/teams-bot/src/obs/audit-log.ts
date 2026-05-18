@@ -35,6 +35,14 @@ export interface IntegrationUsage {
   totalDurationMs: number;
 }
 
+export interface UserActivity {
+  userAadId: string | null;
+  userName: string | null;
+  prOpens: number;
+  prReviews: number;
+  totalToolCalls: number;
+}
+
 const SCHEMA = `
 CREATE TABLE IF NOT EXISTS audit (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -227,6 +235,50 @@ export class AuditLog {
       calls: r.calls,
       errors: r.errors,
       totalDurationMs: r.total_ms,
+    }));
+  }
+
+  /**
+   * Per-user activity since the given timestamp. Counts PR opens, reviews,
+   * and total tool calls — the inputs to "merge-rate per engineer" once merge
+   * tracking via webhook lands.
+   */
+  userActivity(channelKey: string | null, sinceIso?: string): UserActivity[] {
+    const params: unknown[] = [];
+    const whereParts: string[] = [];
+    if (channelKey !== null) {
+      whereParts.push("channel_key = ?");
+      params.push(channelKey);
+    }
+    if (sinceIso) {
+      whereParts.push("timestamp >= ?");
+      params.push(sinceIso);
+    }
+    const where = whereParts.length ? `WHERE ${whereParts.join(" AND ")}` : "";
+    const rows = this.db
+      .prepare(
+        `SELECT user_aad_id, user_name,
+                SUM(CASE WHEN tool_name = 'github_pr_open' AND ok = 1 THEN 1 ELSE 0 END) AS pr_opens,
+                SUM(CASE WHEN tool_name = 'github_pr_review' AND ok = 1 THEN 1 ELSE 0 END) AS pr_reviews,
+                COUNT(*) AS total_calls
+         FROM audit
+         ${where}
+         GROUP BY user_aad_id, user_name
+         ORDER BY total_calls DESC`,
+      )
+      .all(...params) as Array<{
+        user_aad_id: string | null;
+        user_name: string | null;
+        pr_opens: number;
+        pr_reviews: number;
+        total_calls: number;
+      }>;
+    return rows.map((r) => ({
+      userAadId: r.user_aad_id,
+      userName: r.user_name,
+      prOpens: r.pr_opens,
+      prReviews: r.pr_reviews,
+      totalToolCalls: r.total_calls,
     }));
   }
 

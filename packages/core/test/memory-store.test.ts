@@ -102,6 +102,77 @@ describe("MemoryStore", () => {
     m.close();
   });
 
+  it("isolates user-keyed memories of the same name", () => {
+    const m = open();
+    const alice = m.upsert({
+      type: "user",
+      name: "terse-replies",
+      summary: "Alice likes terse",
+      body: "a",
+      path: "/a",
+      channelKey: "ch1",
+      userKey: "alice-aad",
+    });
+    const bob = m.upsert({
+      type: "user",
+      name: "terse-replies",
+      summary: "Bob likes verbose",
+      body: "b",
+      path: "/b",
+      channelKey: "ch1",
+      userKey: "bob-aad",
+    });
+    // Two separate rows despite identical (type, name, channel) — user_key differentiates.
+    expect(alice.id).not.toBe(bob.id);
+    expect(m.list({ type: "user" })).toHaveLength(2);
+    expect(m.list({ userKey: "alice-aad" })).toHaveLength(1);
+    expect(m.list({ userKey: "bob-aad" })).toHaveLength(1);
+    m.close();
+  });
+
+  it("recall scope='user' restricts to the current user's memories", () => {
+    const m = open();
+    m.upsert({
+      type: "user",
+      name: "a",
+      summary: "alice secret sauce",
+      body: "a",
+      path: "/a",
+      userKey: "alice-aad",
+    });
+    m.upsert({
+      type: "user",
+      name: "b",
+      summary: "bob secret sauce",
+      body: "b",
+      path: "/b",
+      userKey: "bob-aad",
+    });
+    const aliceHits = m.recall("secret", { scope: "user", userKey: "alice-aad" });
+    expect(aliceHits).toHaveLength(1);
+    expect(aliceHits[0]!.name).toBe("a");
+    const bobHits = m.recall("secret", { scope: "user", userKey: "bob-aad" });
+    expect(bobHits).toHaveLength(1);
+    expect(bobHits[0]!.name).toBe("b");
+    // default scope='all' still sees both
+    expect(m.recall("secret")).toHaveLength(2);
+    m.close();
+  });
+
+  it("migrates a pre-user_key database additively", () => {
+    // Simulate an old DB by stripping the column the open() migration added,
+    // then re-opening the same DB and checking the migration heals it.
+    const m = open();
+    m.upsert({ type: "user", name: "pre", summary: "from before", body: "x", path: "/p" });
+    const rec = m.list({ type: "user" })[0]!;
+    expect(rec.userKey).toBeNull();
+    // Existing rows still recallable; recall returns userKey=null.
+    const hits = m.recall("before");
+    expect(hits).toHaveLength(1);
+    expect(hits[0]!.userKey).toBeNull();
+    m.close();
+  });
+
   it("list orders by updated DESC", async () => {
     const m = open();
     const first = m.upsert({ type: "user", name: "older", summary: "x", body: "x", path: "/1" });

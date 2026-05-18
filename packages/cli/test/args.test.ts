@@ -37,6 +37,24 @@ describe("parseArgs", () => {
     expect(() => parseArgs(["--autonomous"])).toThrow();
   });
 
+  it("parses --plan with goal", () => {
+    const a = parseArgs(["--plan", "refactor auth layer"]);
+    expect(a.plan).toBe("refactor auth layer");
+  });
+
+  it("throws when --plan has no value", () => {
+    expect(() => parseArgs(["--plan"])).toThrow();
+  });
+
+  it("parses --execute-plan with path", () => {
+    const a = parseArgs(["--execute-plan", "/tmp/plans/foo.md"]);
+    expect(a.executePlan).toBe("/tmp/plans/foo.md");
+  });
+
+  it("throws when --execute-plan has no value", () => {
+    expect(() => parseArgs(["--execute-plan"])).toThrow();
+  });
+
   it("parses --model and --provider", () => {
     const a = parseArgs(["--model", "claude-haiku-4-5", "--provider", "anthropic"]);
     expect(a.model).toBe("claude-haiku-4-5");
@@ -91,5 +109,7 @@ describe("helpText", () => {
     expect(t).toContain("--max-turns");
     expect(t).toContain("--no-color");
     expect(t).toContain("--simple");
+    expect(t).toContain("--plan");
+    expect(t).toContain("--execute-plan");
   });
 });

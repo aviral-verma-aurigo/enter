@@ -143,4 +143,32 @@ describe("AuditLog", () => {
     expect(audit.getMonthly("ch-1").approxTokens).toBe(1500);
     expect(audit.getMonthly("ch-2").approxTokens).toBe(0); // isolated per channel
   });
+
+  it("userActivity rolls up PR opens / reviews / total calls per user", () => {
+    audit.append(entry({ userAadId: "alice", userName: "Alice", toolName: "github_pr_open" }));
+    audit.append(entry({ userAadId: "alice", userName: "Alice", toolName: "github_pr_open" }));
+    audit.append(entry({ userAadId: "alice", userName: "Alice", toolName: "github_pr_review" }));
+    audit.append(entry({ userAadId: "alice", userName: "Alice", toolName: "recall" }));
+    audit.append(entry({ userAadId: "bob", userName: "Bob", toolName: "github_pr_review" }));
+    // Failed calls don't count toward PR opens/reviews
+    audit.append(
+      entry({ userAadId: "alice", userName: "Alice", toolName: "github_pr_open", ok: false }),
+    );
+
+    const all = audit.userActivity(null);
+    const alice = all.find((u) => u.userAadId === "alice")!;
+    expect(alice.prOpens).toBe(2);
+    expect(alice.prReviews).toBe(1);
+    expect(alice.totalToolCalls).toBe(5); // includes the failed call
+    const bob = all.find((u) => u.userAadId === "bob")!;
+    expect(bob.prOpens).toBe(0);
+    expect(bob.prReviews).toBe(1);
+  });
+
+  it("userActivity filters by channel when supplied", () => {
+    audit.append(entry({ channelKey: "ch-A", userAadId: "alice", toolName: "github_pr_open" }));
+    audit.append(entry({ channelKey: "ch-B", userAadId: "alice", toolName: "github_pr_open" }));
+    expect(audit.userActivity("ch-A").find((u) => u.userAadId === "alice")!.prOpens).toBe(1);
+    expect(audit.userActivity(null).find((u) => u.userAadId === "alice")!.prOpens).toBe(2);
+  });
 });

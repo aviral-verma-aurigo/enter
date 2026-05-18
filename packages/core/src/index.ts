@@ -43,3 +43,7 @@ export * from "./util/errors.js";
 // Integrations (CLI + bot can both register these)
 export * from "./integrations/ado/index.js";
 export * from "./integrations/confluence/index.js";
+export * from "./integrations/aha/index.js";
+
+// MCP (Model Context Protocol) — connects to external tool servers via stdio.
+export * from "./mcp/index.js";

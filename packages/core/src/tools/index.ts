@@ -20,6 +20,7 @@ import { spawnSubagentTool } from "./spawn-subagent.js";
 import { delegateClaudeCodeTool } from "./delegate-claude-code.js";
 import { authorSkillTool } from "./author-skill-tool.js";
 import { doneTool } from "./done.js";
+import { proposePlanTool } from "./propose-plan.js";
 
 export * from "./context.js";
 
@@ -81,6 +82,7 @@ export function registerBuiltinTools(options: BuildToolsOptions): AgentTool[] {
 
   if (options.doneSignal) {
     core.push(doneTool(options.doneSignal));
+    core.push(proposePlanTool(ctx, options.doneSignal));
   }
 
   if (options.extra) {

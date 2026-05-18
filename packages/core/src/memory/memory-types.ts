@@ -10,6 +10,12 @@ export interface MemoryRecord {
   path: string;
   projectHash: string | null;
   channelKey: string | null;
+  /**
+   * Optional identifier for the human who saved the memory (e.g. Teams aadObjectId).
+   * NULL on rows saved before per-user keying or by the CLI without a user identity.
+   * Lets `type=user` memories stay isolated between teammates sharing a channel.
+   */
+  userKey: string | null;
   tags: string[];
   created: string;
   updated: string;
@@ -25,6 +31,11 @@ export interface RecallHit {
   path: string;
   channelKey: string | null;
   projectHash: string | null;
+  userKey: string | null;
 }
 
-export type RecallScope = "channel" | "project" | "global" | "all";
+/**
+ * `user` scope: restrict to memories saved by the current user (matches `userKey`).
+ * Combined with channel/project at the call site if both are set.
+ */
+export type RecallScope = "channel" | "project" | "user" | "global" | "all";

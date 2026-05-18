@@ -4,6 +4,8 @@ import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { githubPrOpenTool } from "../src/tools/github-pr-open.js";
 import { githubPrCommentTool } from "../src/tools/github-pr-comment.js";
+import { githubPrFetchTool } from "../src/tools/github-pr-fetch.js";
+import { githubPrReviewTool } from "../src/tools/github-pr-review.js";
 import { WorktreeManager } from "../src/channels/worktree-mgr.js";
 import type { GitHubAppAuth } from "../src/auth/github-app.js";
 
@@ -11,6 +13,9 @@ let tmpDir: string;
 let worktrees: WorktreeManager;
 let pullsCreate: ReturnType<typeof vi.fn>;
 let issuesCreateComment: ReturnType<typeof vi.fn>;
+let pullsGet: ReturnType<typeof vi.fn>;
+let pullsListFiles: ReturnType<typeof vi.fn>;
+let pullsCreateReview: ReturnType<typeof vi.fn>;
 let fakeAuth: GitHubAppAuth;
 
 beforeEach(() => {
@@ -26,11 +31,58 @@ beforeEach(() => {
   issuesCreateComment = vi.fn(async () => ({
     data: { html_url: "https://github.com/acme/foo/issues/42#issuecomment-1" },
   }));
+  pullsGet = vi.fn(async (args: Record<string, unknown>) => ({
+    data: {
+      number: args["pull_number"],
+      title: "Fix retry state machine",
+      body: "Closes AB#1234.",
+      state: "open",
+      draft: false,
+      html_url: `https://github.com/${args["owner"]}/${args["repo"]}/pull/${args["pull_number"]}`,
+      base: { ref: "main", sha: "abcdef0123456789" },
+      head: { ref: "fix/retry", sha: "fedcba9876543210" },
+      additions: 12,
+      deletions: 3,
+      changed_files: 2,
+    },
+  }));
+  pullsListFiles = vi.fn(async () => ({
+    data: [
+      {
+        filename: "src/retry.ts",
+        status: "modified",
+        additions: 10,
+        deletions: 3,
+        changes: 13,
+        patch: "@@ -1,3 +1,10 @@\n-old\n+new",
+      },
+      {
+        filename: "test/retry.test.ts",
+        status: "added",
+        additions: 2,
+        deletions: 0,
+        changes: 2,
+        patch: "@@ -0,0 +1,2 @@\n+it('works')",
+      },
+    ],
+  }));
+  pullsCreateReview = vi.fn(async (args: Record<string, unknown>) => ({
+    data: {
+      id: 7777,
+      html_url: `https://github.com/${args["owner"]}/${args["repo"]}/pull/${args["pull_number"]}#pullrequestreview-7777`,
+      state: args["event"] === "REQUEST_CHANGES" ? "CHANGES_REQUESTED" : "COMMENTED",
+    },
+  }));
 
   fakeAuth = {
     async octokitForRepo() {
       return {
-        pulls: { create: pullsCreate },
+        pulls: {
+          create: pullsCreate,
+          get: pullsGet,
+          listFiles: pullsListFiles,
+          createReview: pullsCreateReview,
+        },
         issues: { createComment: issuesCreateComment },
       } as never;
     },
@@ -268,6 +320,158 @@ describe("github_pr_open", () => {
     const args = pullsCreate.mock.calls[0]![0] as { body: string };
     expect(args.body).not.toContain("Linked ADO work items");
     expect(args.body).not.toContain("_workitems/edit");
+  });
+});
+
+describe("github_pr_fetch", () => {
+  it("refuses when the channel has no worktree", async () => {
+    const tool = githubPrFetchTool({ channelKey: "ch1", worktrees, auth: fakeAuth });
+    const r = await tool.execute("t1", { pr_number: 42 });
+    expect(r.isError).toBe(true);
+    expect(pullsGet).not.toHaveBeenCalled();
+    expect(pullsListFiles).not.toHaveBeenCalled();
+  });
+
+  it("returns PR metadata and per-file patches", async () => {
+    worktrees.register("ch1", {
+      path: path.join(tmpDir, "ch1", "main"),
+      repo: "acme/foo",
+      ref: "main",
+    });
+    const tool = githubPrFetchTool({ channelKey: "ch1", worktrees, auth: fakeAuth });
+    const r = await tool.execute("t1", { pr_number: 99 });
+    expect(r.isError).toBeUndefined();
+    expect(pullsGet).toHaveBeenCalledOnce();
+    expect(pullsListFiles).toHaveBeenCalledOnce();
+    const listArgs = pullsListFiles.mock.calls[0]![0] as { per_page: number };
+    expect(listArgs.per_page).toBe(30); // default
+
+    const details = r.details as {
+      number: number;
+      base: { ref: string; sha: string };
+      head: { ref: string };
+      files: Array<{ filename: string; patch: string | null }>;
+    };
+    expect(details.number).toBe(99);
+    expect(details.base.ref).toBe("main");
+    expect(details.head.ref).toBe("fix/retry");
+    expect(details.files).toHaveLength(2);
+    expect(details.files[0]!.filename).toBe("src/retry.ts");
+    expect(details.files[0]!.patch).toContain("@@");
+
+    const text = r.content[0]?.text ?? "";
+    expect(text).toContain("PR #99");
+    expect(text).toContain("Fix retry state machine");
+    expect(text).toContain("Base: main");
+    expect(text).toContain("Closes AB#1234.");
+  });
+
+  it("honours per_page when provided", async () => {
+    worktrees.register("ch1", {
+      path: path.join(tmpDir, "ch1", "main"),
+      repo: "acme/foo",
+      ref: "main",
+    });
+    const tool = githubPrFetchTool({ channelKey: "ch1", worktrees, auth: fakeAuth });
+    await tool.execute("t1", { pr_number: 1, per_page: 100 });
+    const listArgs = pullsListFiles.mock.calls[0]![0] as { per_page: number };
+    expect(listArgs.per_page).toBe(100);
+  });
+});
+
+describe("github_pr_review", () => {
+  it("refuses when the channel has no worktree", async () => {
+    const tool = githubPrReviewTool({ channelKey: "ch1", worktrees, auth: fakeAuth });
+    const r = await tool.execute("t1", { pr_number: 1, body: "looks good" });
+    expect(r.isError).toBe(true);
+    expect(pullsCreateReview).not.toHaveBeenCalled();
+  });
+
+  it("submits a COMMENT review by default with no inline comments", async () => {
+    worktrees.register("ch1", {
+      path: path.join(tmpDir, "ch1", "main"),
+      repo: "acme/foo",
+      ref: "main",
+    });
+    const tool = githubPrReviewTool({ channelKey: "ch1", worktrees, auth: fakeAuth });
+    const r = await tool.execute("t1", { pr_number: 42, body: "Three small nits below." });
+    expect(r.isError).toBeUndefined();
+    expect(pullsCreateReview).toHaveBeenCalledOnce();
+    const args = pullsCreateReview.mock.calls[0]![0] as {
+      owner: string;
+      repo: string;
+      pull_number: number;
+      body: string;
+      event: string;
+      comments?: unknown[];
+    };
+    expect(args.owner).toBe("acme");
+    expect(args.repo).toBe("foo");
+    expect(args.pull_number).toBe(42);
+    expect(args.event).toBe("COMMENT");
+    expect(args.body).toBe("Three small nits below.");
+    expect(args.comments).toBeUndefined();
+    expect(r.content[0]?.text).toContain("Submitted COMMENT review on PR #42");
+    expect(r.content[0]?.text).toContain("0 inline comments");
+  });
+
+  it("passes inline comments with default RIGHT side", async () => {
+    worktrees.register("ch1", {
+      path: path.join(tmpDir, "ch1", "main"),
+      repo: "acme/foo",
+      ref: "main",
+    });
+    const tool = githubPrReviewTool({ channelKey: "ch1", worktrees, auth: fakeAuth });
+    const r = await tool.execute("t1", {
+      pr_number: 42,
+      body: "See comments.",
+      event: "REQUEST_CHANGES",
+      comments: [
+        { path: "src/retry.ts", line: 12, body: "Off-by-one here." },
+        { path: "src/retry.ts", line: 8, side: "LEFT", body: "Why was this removed?" },
+      ],
+    });
+    expect(r.isError).toBeUndefined();
+    const args = pullsCreateReview.mock.calls[0]![0] as {
+      event: string;
+      comments: Array<{ path: string; line: number; side: string; body: string }>;
+    };
+    expect(args.event).toBe("REQUEST_CHANGES");
+    expect(args.comments).toHaveLength(2);
+    expect(args.comments[0]!.side).toBe("RIGHT"); // default
+    expect(args.comments[1]!.side).toBe("LEFT");
+    expect(r.content[0]?.text).toContain("2 inline comments");
+  });
+
+  it("appends requestedBy footer to the review body when provided", async () => {
+    worktrees.register("ch1", {
+      path: path.join(tmpDir, "ch1", "main"),
+      repo: "acme/foo",
+      ref: "main",
+    });
+    const tool = githubPrReviewTool({
+      channelKey: "ch1",
+      worktrees,
+      auth: fakeAuth,
+      requestedBy: () => "Review requested by Aviral in #engineering",
+    });
+    await tool.execute("t1", { pr_number: 42, body: "LGTM with notes." });
+    const args = pullsCreateReview.mock.calls[0]![0] as { body: string };
+    expect(args.body).toContain("LGTM with notes.");
+    expect(args.body).toContain("---");
+    expect(args.body).toContain("Review requested by Aviral in #engineering");
+  });
+
+  it("schema restricts event to COMMENT or REQUEST_CHANGES (bot never approves/merges)", () => {
+    const tool = githubPrReviewTool({ channelKey: "ch1", worktrees, auth: fakeAuth });
+    const eventProp = (
+      tool.parameters as unknown as {
+        properties: { event: { anyOf: Array<{ const: string }> } };
+      }
+    ).properties.event;
+    const literals = eventProp.anyOf.map((s) => s.const).sort();
+    expect(literals).toEqual(["COMMENT", "REQUEST_CHANGES"]);
+    expect(literals).not.toContain("APPROVE");
   });
 });
 

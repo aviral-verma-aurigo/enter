@@ -51,6 +51,12 @@ function memoryFilePath(ctx: ToolContext, type: MemoryType, name: string): strin
     const proj = ctx.projectHash ?? "unscoped";
     return path.join(base, "project", proj, `${name}.md`);
   }
+  if (type === "user" && ctx.userKey) {
+    // Each teammate's `type=user` memories live in their own subdirectory so the
+    // on-disk markdown doesn't collide on identical slugs (e.g. two engineers
+    // each saving `terse-replies.md`).
+    return path.join(base, "user", safeKey(ctx.userKey), `${name}.md`);
+  }
   return path.join(base, type, `${name}.md`);
 }
 
@@ -80,6 +86,7 @@ export function rememberTool(ctx: ToolContext): AgentTool<typeof RememberParams>
         tags: params.tags ?? [],
         projectHash: params.type === "project" ? ctx.projectHash : null,
         channelKey: params.type === "channel" ? ctx.channelKey : null,
+        userKey: params.type === "user" ? ctx.userKey : null,
       });
 
       const frontmatter: Record<string, unknown> = {
@@ -93,6 +100,7 @@ export function rememberTool(ctx: ToolContext): AgentTool<typeof RememberParams>
       };
       if (record.projectHash) frontmatter["project"] = record.projectHash;
       if (record.channelKey) frontmatter["channel"] = record.channelKey;
+      if (record.userKey) frontmatter["user"] = record.userKey;
       if (params.entities) frontmatter["entities"] = params.entities;
       if (params.links) frontmatter["links"] = params.links;
 

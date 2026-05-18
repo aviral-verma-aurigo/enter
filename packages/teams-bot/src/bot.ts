@@ -31,9 +31,16 @@ export interface EnterBotDeps {
   auth: GitHubAppAuth | null;
   adoAuth: import("@enter/core").EntraServicePrincipalAuth | null;
   confluenceAuth: import("@enter/core").AtlassianTokenAuth | null;
-  ahaAuth: import("./auth/index.js").AhaApiKeyAuth | null;
+  ahaAuth: import("@enter/core").AhaApiKeyAuth | null;
   adoOrgUrl?: string;
   confluenceBaseUrl?: string;
+  ahaBaseUrl?: string;
+  /**
+   * MCP tools already built by the server (one McpClientManager spans the bot
+   * process; tools are shared across channels). Empty when no MCP servers are
+   * configured.
+   */
+  mcpTools: AgentTool[];
   monthlyTokenBudgetPerChannel: number;
   allowedRepos: string[];
 }
@@ -72,6 +79,8 @@ const BOT_ALLOWED_TOOLS_EXTRA = [
   "git_push",
   "github_pr_open",
   "github_pr_comment",
+  "github_pr_fetch",
+  "github_pr_review",
   "ado_work_item_get",
   "ado_query",
   "ado_work_item_create",
@@ -81,6 +90,9 @@ const BOT_ALLOWED_TOOLS_EXTRA = [
   "confluence_page_get",
   "confluence_search",
   "confluence_page_append_comment",
+  "aha_feature_get",
+  "aha_release_get",
+  "aha_feature_comment",
   "ado_work_item_link_pr",
 ];
 
@@ -134,6 +146,9 @@ export class EnterBot extends ActivityHandler {
       cwd: paths.home, // bumped to worktree path on git_clone
       projectHash,
       channelKey,
+      // userKey is set per-turn in handleMessage so two teammates in the same
+      // channel get their own `type=user` memory scope.
+      userKey: null,
     };
 
     let tools: AgentTool[] = [];
@@ -145,6 +160,8 @@ export class EnterBot extends ActivityHandler {
       adoOrgUrl: this.deps.adoOrgUrl ?? null,
       confluenceAuth: this.deps.confluenceAuth,
       confluenceBaseUrl: this.deps.confluenceBaseUrl ?? null,
+      ahaAuth: this.deps.ahaAuth,
+      ahaBaseUrl: this.deps.ahaBaseUrl ?? null,
       requestedBy: () => userTag,
       allowedRepos: this.deps.allowedRepos,
       onCloned: (worktreePath) => {
@@ -152,6 +169,17 @@ export class EnterBot extends ActivityHandler {
         logger.info("Bumped ctx.cwd to worktree", { channelKey, worktreePath });
       },
     });
+    // MCP tools are spawned once at bot startup and shared across channels.
+    botTools.push(...this.deps.mcpTools);
+
+    // Dynamic allowlist: built-ins + bot extras + every MCP tool name. MCP
+    // tools follow the `mcp_<server>_<name>` scheme so collisions with native
+    // tool names are impossible.
+    const allowedTools = [
+      ...BOT_ALLOWED_TOOLS_CORE,
+      ...BOT_ALLOWED_TOOLS_EXTRA,
+      ...this.deps.mcpTools.map((t) => t.name),
+    ];
 
     const { agent, tools: built } = buildAgent({
       ctx,
@@ -160,7 +188,7 @@ export class EnterBot extends ActivityHandler {
       apiKey,
       thinkingLevel: config.thinkingLevel,
       thinkingBudgets: config.thinkingBudgets,
-      allowedTools: [...BOT_ALLOWED_TOOLS_CORE, ...BOT_ALLOWED_TOOLS_EXTRA],
+      allowedTools,
       extraTools: botTools,
       includeBash: false,
       channelKey,
@@ -221,6 +249,10 @@ export class EnterBot extends ActivityHandler {
       ` in channel ${channelKey}`;
 
     const runtime = this.getOrBuildChannel(context, channelKey, userTag);
+    // Stamp the per-turn user identity onto the shared ToolContext so memory
+    // tools see whichever teammate just posted (the ChannelRuntime is cached
+    // per channel, not per user).
+    runtime.ctx.userKey = user?.aadObjectId ?? null;
 
     let finalText = "";
     const toolNotes: { name: string; ok: boolean }[] = [];

@@ -11,6 +11,8 @@ description: The `enter` binary — modes, flags, and environment variables.
 enter [prompt...]
 enter --print "<prompt>"
 enter --autonomous "<goal>" [--max-turns N]
+enter --plan "<goal>"
+enter --execute-plan <path-to-saved-plan>
 enter export <session-id>
 enter version
 enter help
@@ -32,6 +34,8 @@ Terminals narrower than 47 columns collapse the banner to a single compact heade
 |---|---|
 | `--print`, `-p` | Headless one-shot. Streams the final assistant message to stdout, then exits. |
 | `--autonomous <goal>` | Run the autonomous loop until `done` / max-turns / idle-stall / timeout. |
+| `--plan <goal>` | Plan-first mode. Investigate read-only, then call `propose_plan` and exit. Plan saved to `~/.enter/plans/<timestamp>-<slug>.md`. |
+| `--execute-plan <path>` | Execute a plan saved earlier. The plan body is injected as the autonomous goal. |
 | `--max-turns <n>` | Cap the autonomous loop. Overrides `config.autonomy.maxTurns`. |
 | `--model <id>` | Provider-specific model ID. Overrides `config.model` and `ENTER_MODEL`. |
 | `--provider <name>` | Provider key (e.g. `anthropic`, `openai`). Overrides `config.provider` and `ENTER_PROVIDER`. |
@@ -80,3 +84,13 @@ Resume a session:
 ```powershell
 enter --session 01HXY...ULID
 ```
+
+Plan-first, then execute:
+
+```powershell
+enter --plan "wire up the github_pr_review tool to trigger on PR open"
+# review the saved plan under ~/.enter/plans/, then:
+enter --execute-plan "$env:USERPROFILE/.enter/plans/2026-05-18T16-30-00-wire-up-the-github-pr-review-tool.md"
+```
+
+Plan-mode is read-only by directive: the agent has access to investigation tools (`read`, `grep`, `glob`, `recall`) but the persona prompt tells it to call `propose_plan` rather than `write` / `edit` / `bash`. The autonomous loop terminates after `propose_plan` fires.

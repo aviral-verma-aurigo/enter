@@ -26,6 +26,7 @@ function record(overrides: Partial<MemoryRecord>): MemoryRecord {
     path: path.join(tmpDir, "name.md"),
     projectHash: null,
     channelKey: null,
+    userKey: null,
     tags: [],
     created: "2026-05-14T00:00:00Z",
     updated: "2026-05-14T00:00:00Z",

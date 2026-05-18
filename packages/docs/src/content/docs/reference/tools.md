@@ -36,6 +36,7 @@ All tools are `AgentTool` factories. The `parameters` column lists parameter nam
 | `delegate_to_claude_code` | Hand off a self-contained task to Claude Code via the Claude Agent SDK. | `task`, `allowed_tools?`, `cwd?`, `max_turns?`, `system_prompt?` |
 | `author_skill` | Write a new SKILL.md for a recurring procedure the agent has noticed. Includes a one-shot critique pass. | `name`, `trigger`, `procedure`, `rationale?` |
 | `done` | Mark the autonomous goal complete. Terminates the loop. | `summary`, `artifacts?` |
+| `propose_plan` | Plan-first mode: save a markdown plan to `~/.enter/plans/` and stop. Available only when the autonomous loop is active (`--autonomous` / `--plan`). | `goal`, `steps`, `critical_files?`, `verification?` |
 
 ## Integrations (CLI + Teams bot)
 
@@ -76,6 +77,20 @@ Every write tool appends `— Requested by <name>` as a System.History entry (vi
 
 Auth: bot account email + API token (`CONFLUENCE_BASE_URL` + `CONFLUENCE_USER` + `CONFLUENCE_API_TOKEN`). Same shared-credential pattern used for ADO writes — works org-wide with no per-user OAuth.
 
+### Aha!
+
+| Name | Description | Parameters |
+|---|---|---|
+| `aha_feature_get` | Fetch a feature by `reference_num` (e.g. `APP-123`) or numeric id. Returns name, status, assigned_to, release, description, and the Aha! web URL. | `id` |
+| `aha_release_get` | Fetch a release by reference_num or numeric id. Returns name, release_date, derived status (in development / released / scheduled), parking_lot flag. | `id` |
+| `aha_feature_comment` | Add a comment to a feature. Identity authors; human requester appended as an HTML-escaped attribution footer. | `id`, `body` |
+
+Auth: service-account API key (`AHA_BASE_URL` + `AHA_API_KEY`). Get the key from Aha! → Settings → Account → API. Same shared-credential pattern — no per-user OAuth.
+
+### MCP (Model Context Protocol)
+
+Configure external MCP servers under `mcpServers` in `~/.enter/config.json` (see [Config File](/config/file/)). Each tool the server exposes is registered with a namespaced name `mcp_<server-key>_<tool-name>` and otherwise behaves exactly like a native Enter tool. The Anthropic-recommended servers (Sentry, Linear, Notion, Figma, Slack) all ship as stdio MCP servers and slot in without any per-vendor adapter code. A failed connect is logged; one bad server doesn't block the rest.
+
 ## Teams bot only
 
 These tools are registered only in `@enter/teams-bot`. They never run in the CLI. They require a GitHub App.
@@ -90,6 +105,8 @@ These tools are registered only in `@enter/teams-bot`. They never run in the CLI
 | `run_tests` | Detect and run the project's test suite. Auto-detects npm/pytest/cargo/go/maven/gradle/bundler. | `command?`, `timeout_ms?` |
 | `github_pr_open` | Open a PR on the channel's currently-cloned repo. Auto-detects `AB#NNNN` work-item references in the title and body, injects a "Linked ADO work items" section into the PR body, and (best-effort) adds a Hyperlink relation on each referenced work item pointing back at the new PR. Bot never merges. | `title`, `body`, `head`, `base?`, `draft?` |
 | `github_pr_comment` | Add a comment to an existing PR on the channel's currently-cloned repo. | `pr_number`, `body` |
+| `github_pr_fetch` | Fetch a PR's metadata and changed files (with patches) so the agent can review it. Pair with `github_pr_review` to submit findings. | `pr_number`, `per_page?` |
+| `github_pr_review` | Submit a PR review. `event` is `COMMENT` (default) or `REQUEST_CHANGES` — `APPROVE` is disallowed because the bot never approves or merges. Optional inline `comments` anchor to `(path, line, side)` tuples. | `pr_number`, `body`, `event?`, `comments?` |
 
 :::caution[Denylist]
 `sandboxed_bash` blocks a curated denylist (`sudo`, raw network fetchers, destructive deletes, etc). The bot is not a free-form shell — when the denylist refuses something, that's the system working as designed.

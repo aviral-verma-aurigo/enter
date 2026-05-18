@@ -15,8 +15,17 @@ const RecallParams = Type.Object({
   ),
   scope: Type.Optional(
     Type.Union(
-      [Type.Literal("channel"), Type.Literal("project"), Type.Literal("global"), Type.Literal("all")],
-      { description: "Where to search. 'all' (default) ignores scope filtering." },
+      [
+        Type.Literal("channel"),
+        Type.Literal("project"),
+        Type.Literal("user"),
+        Type.Literal("global"),
+        Type.Literal("all"),
+      ],
+      {
+        description:
+          "Where to search. 'all' (default) ignores scope filtering. 'user' restricts to memories the current user saved (Teams aadObjectId / CLI session).",
+      },
     ),
   ),
 });
@@ -37,6 +46,7 @@ export function recallTool(ctx: ToolContext): AgentTool<typeof RecallParams> {
         scope: params.scope,
         projectHash: ctx.projectHash,
         channelKey: ctx.channelKey,
+        userKey: ctx.userKey,
       });
 
       if (hits.length === 0) {

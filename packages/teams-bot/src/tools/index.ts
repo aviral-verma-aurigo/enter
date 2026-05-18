@@ -3,8 +3,10 @@ import { spawn } from "node:child_process";
 import {
   buildAdoTools,
   buildConfluenceTools,
+  buildAhaTools,
   type EntraServicePrincipalAuth,
   type AtlassianAuthorizer,
+  type AhaAuthorizer,
 } from "@enter/core";
 import type { GitHubAppAuth } from "../auth/github-app.js";
 import type { WorktreeManager } from "../channels/worktree-mgr.js";
@@ -12,6 +14,8 @@ import { gitCloneTool } from "./git-clone.js";
 import { gitPushTool } from "./git-push.js";
 import { githubPrOpenTool } from "./github-pr-open.js";
 import { githubPrCommentTool } from "./github-pr-comment.js";
+import { githubPrFetchTool } from "./github-pr-fetch.js";
+import { githubPrReviewTool } from "./github-pr-review.js";
 import { sandboxedBashTool } from "./sandboxed-bash.js";
 import { runTestsTool } from "./run-tests.js";
 
@@ -23,6 +27,8 @@ export interface BuildBotToolsOptions {
   adoOrgUrl: string | null;
   confluenceAuth: AtlassianAuthorizer | null;
   confluenceBaseUrl: string | null;
+  ahaAuth: AhaAuthorizer | null;
+  ahaBaseUrl: string | null;
   requestedBy: () => string;
   allowedRepos: string[];
   /** Called when a clone completes so the bot can mutate ctx.cwd. */
@@ -73,6 +79,17 @@ export function buildBotTools(options: BuildBotToolsOptions): AgentTool[] {
         worktrees: options.worktrees,
         auth: options.auth,
       }),
+      githubPrFetchTool({
+        channelKey: options.channelKey,
+        worktrees: options.worktrees,
+        auth: options.auth,
+      }),
+      githubPrReviewTool({
+        channelKey: options.channelKey,
+        worktrees: options.worktrees,
+        auth: options.auth,
+        requestedBy: options.requestedBy,
+      }),
     );
   }
 
@@ -91,6 +108,16 @@ export function buildBotTools(options: BuildBotToolsOptions): AgentTool[] {
       ...buildAdoTools({
         auth: options.adoAuth,
         orgUrl: options.adoOrgUrl,
+        requestedBy: options.requestedBy,
+      }),
+    );
+  }
+
+  if (options.ahaAuth && options.ahaBaseUrl) {
+    tools.push(
+      ...buildAhaTools({
+        auth: options.ahaAuth,
+        baseUrl: options.ahaBaseUrl,
         requestedBy: options.requestedBy,
       }),
     );

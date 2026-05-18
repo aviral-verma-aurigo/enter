@@ -12,6 +12,13 @@ import {
   EntraServicePrincipalAuth,
   GitHubAppAuth,
 } from "./auth/index.js";
+import {
+  McpClientManager,
+  resolvePaths,
+  ensureDirs,
+  loadConfig,
+} from "@enter/core";
+import type { AgentTool } from "@earendil-works/pi-agent-core";
 
 async function main(): Promise<void> {
   const env = loadBotEnv();
@@ -59,6 +66,20 @@ async function main(): Promise<void> {
   const confluenceAuth = env.confluence ? new AtlassianTokenAuth(env.confluence) : null;
   const ahaAuth = env.aha ? new AhaApiKeyAuth(env.aha) : null;
 
+  // MCP servers from the bot's own ~/.enter config. One manager spans the
+  // process; tools register identically in every channel.
+  const botPaths = resolvePaths({ ...(env.homeOverride ? { homeOverride: env.homeOverride } : {}) });
+  ensureDirs(botPaths);
+  const botConfig = loadConfig(botPaths);
+  const mcpManager = new McpClientManager();
+  let mcpTools: AgentTool[] = [];
+  if (botConfig.mcpServers && Object.keys(botConfig.mcpServers).length > 0) {
+    mcpTools = await mcpManager.start(botConfig.mcpServers);
+    process.stdout.write(
+      `MCP: registered ${mcpTools.length} tools from ${Object.keys(botConfig.mcpServers).length} server(s).\n`,
+    );
+  }
+
   // Sweep stale worktrees every hour.
   const sweepTimer = setInterval(() => {
     void worktrees.sweep().catch((err) => process.stderr.write(`[sweep] ${err.message}\n`));
@@ -76,6 +97,8 @@ async function main(): Promise<void> {
     ahaAuth,
     ...(env.ado ? { adoOrgUrl: env.ado.orgUrl } : {}),
     ...(env.confluence ? { confluenceBaseUrl: env.confluence.baseUrl } : {}),
+    ...(env.aha ? { ahaBaseUrl: env.aha.baseUrl } : {}),
+    mcpTools,
     monthlyTokenBudgetPerChannel: env.monthlyTokenBudgetPerChannel,
     allowedRepos: env.defaultAllowedRepos,
   });
@@ -96,9 +119,13 @@ async function main(): Promise<void> {
       ado: env.ado ? "configured" : "missing",
       confluence: env.confluence ? "configured" : "missing",
       aha: env.aha ? "configured" : "missing",
+      mcp: mcpTools.length > 0 ? `${mcpTools.length} tools` : "none",
       worktreesRoot: env.worktreesRoot,
       channelAllowlist: env.channelAllowlist ? `${env.channelAllowlist.length} channels` : "open",
       usage7d: audit.globalIntegrationUsage(sevenDaysAgo),
+      // Per-user activity (PR opens / reviews / total calls) across all channels — the inputs
+      // to "merge-rate per engineer" once webhook-driven merge tracking lands.
+      topUsers7d: audit.userActivity(null, sevenDaysAgo).slice(0, 20),
     });
   });
 

@@ -39,6 +39,12 @@ interface EnterConfig {
     color: boolean;
     renderer: "rich" | "plain";
   };
+  mcpServers?: Record<string, {
+    command: string;            // executable to spawn (`npx`, `python`, etc.)
+    args?: string[];
+    env?: Record<string, string>;
+    description?: string;
+  }>;
 }
 ```
 
@@ -83,6 +89,7 @@ The schema is enforced with [Typebox](https://github.com/sinclairzx81/typebox); 
 - **subagent.defaultTools** — the read-only-ish whitelist a spawned subagent gets when the caller doesn't override.
 - **tools.bash.shell** — `auto` picks `powershell` on Windows, `bash` elsewhere. Pin it if your terminal misdetects.
 - **ui.renderer** — `rich` for the full TUI, `plain` for the readline fallback (equivalent to `--simple`).
+- **mcpServers** — optional map of external [Model Context Protocol](https://modelcontextprotocol.io) servers spawned at startup. Each tool the server exposes is registered as `mcp_<server-key>_<tool-name>` in both the CLI and the Teams bot. Example: `{ "sentry": { "command": "npx", "args": ["-y", "@sentry/mcp-server"], "env": { "SENTRY_AUTH_TOKEN": "..." } } }`. A failed connect is logged but doesn't block other servers from registering.
 
 :::tip
 You don't need to write the whole config. Drop the keys you want to override; everything else inherits from `DEFAULT_CONFIG` at runtime.

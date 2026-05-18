@@ -2,11 +2,6 @@
 
 Feature work tracked but not in progress. Top of list = next likely pickup. When you pull from here, move the item out and into the active task list.
 
-## Close the cross-functional loop
-
-- **Aha! native tools** *(was task #36)*
-  `aha_feature_get`, `aha_release_get`, `aha_feature_comment` (with requester attribution). `AhaApiKeyAuth` lifted to `@enter/core/integrations/aha/`. Env: `AHA_BASE_URL`, `AHA_API_KEY`. Effort: 1-2 hrs.
-
 ## Operational readiness — before wider rollout
 
 - **Per-user rate limits in bot**
@@ -22,8 +17,8 @@ Feature work tracked but not in progress. Top of list = next likely pickup. When
 
 ## Capability expansion
 
-- **MCP (Model Context Protocol) client**
-  One client in `@enter/core`, then any MCP server (Sentry, Datadog, Linear, Notion, Figma, etc.) is reachable without writing native tools. Per-channel opt-in of which MCP servers a channel can use (stops one team's Notion creds from leaking to another). Reframes Enter as MCP-native, useful marketing point.
+- **Per-channel MCP opt-in**
+  MCP client ships in `@enter/core` and registers globally per process. To stop one team's Notion creds leaking into another channel, add a per-channel allowlist of which MCP servers the channel can call (e.g. via `ENTER_BOT_CHANNEL_MCP_ALLOWLIST` or a channel-config field). The tool catalog already supports filtering, so this is plumbing rather than design.
 
 - **LLM-based entity extraction**
   Today's graph extraction is deterministic-only (frontmatter, `@mentions`, code paths). Add an optional second pass that runs an LLM over free-text memory bodies and emits edges with `confidence < 1.0` and `source_memory_id`. Enables a `/graph forget` slash command to prune low-confidence edges later.
@@ -33,10 +28,6 @@ Feature work tracked but not in progress. Top of list = next likely pickup. When
 
 - **Autonomous mode in the Teams bot**
   Currently CLI-only. Bot version needs careful UX around long-running async posts (the agent may take minutes to call `done`; the channel needs progress updates without spamming).
-
-## Lift remaining integrations to `@enter/core`
-
-- **Confluence + Aha! to core** — same pattern we used for ADO (task #38). Once those native tools exist, lift `AtlassianTokenAuth` and `AhaApiKeyAuth` so the CLI registers them too. Both surfaces share the same code.
 
 ## Stretch / long-tail
 

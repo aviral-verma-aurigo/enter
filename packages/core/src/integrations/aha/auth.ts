@@ -6,27 +6,32 @@ export interface AhaApiKeyConfig {
 }
 
 /**
- * Service-account auth for Aha!. Single static API key, sent as a Bearer token
- * (Aha!'s REST API also accepts `Authorization: Bearer <key>`).
+ * Anything an Aha! tool needs to authorize a single REST call. Mirrors the
+ * `AdoAuthorizer` / `AtlassianAuthorizer` patterns so future auth modes
+ * (e.g. OAuth) can drop in without changing the tools.
  */
-export class AhaApiKeyAuth {
+export interface AhaAuthorizer {
+  getAuthHeader(): Promise<string>;
+}
+
+/**
+ * Service-account auth for Aha!. Single static API key, sent as a Bearer token
+ * (Aha!'s REST API accepts `Authorization: Bearer <key>`). Tokens stay valid
+ * until revoked — no refresh dance.
+ */
+export class AhaApiKeyAuth implements AhaAuthorizer {
   readonly bearerHeader: string;
 
   constructor(public readonly config: AhaApiKeyConfig) {
     this.bearerHeader = `Bearer ${config.apiKey}`;
   }
 
+  async getAuthHeader(): Promise<string> {
+    return this.bearerHeader;
+  }
+
   url(pathOrUrl: string): string {
     if (/^https?:\/\//i.test(pathOrUrl)) return pathOrUrl;
     return `${this.config.baseUrl.replace(/\/$/, "")}/${pathOrUrl.replace(/^\//, "")}`;
-  }
-
-  headers(extra: Record<string, string> = {}): Record<string, string> {
-    return {
-      Authorization: this.bearerHeader,
-      Accept: "application/json",
-      "Content-Type": "application/json",
-      ...extra,
-    };
   }
 }

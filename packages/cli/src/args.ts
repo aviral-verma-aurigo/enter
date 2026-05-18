@@ -3,6 +3,10 @@ export interface CliArgs {
   positional: string[];
   print: boolean;
   autonomous?: string;
+  /** Propose a plan and exit (interactive plan-first mode). */
+  plan?: string;
+  /** Execute a previously proposed plan from `~/.enter/plans/<name>.md`. */
+  executePlan?: string;
   model?: string;
   provider?: string;
   soul?: string;
@@ -47,6 +51,18 @@ export function parseArgs(argv: string[]): CliArgs {
         out.autonomous = v;
         break;
       }
+      case "--plan": {
+        const v = argv[++i];
+        if (!v) throw new Error("--plan requires a goal string");
+        out.plan = v;
+        break;
+      }
+      case "--execute-plan": {
+        const v = argv[++i];
+        if (!v) throw new Error("--execute-plan requires a path to a saved plan");
+        out.executePlan = v;
+        break;
+      }
       case "--model":
         out.model = argv[++i];
         break;
@@ -86,6 +102,8 @@ USAGE
   enter [prompt...]
   enter --print "<prompt>"
   enter --autonomous "<goal>" [--max-turns N]
+  enter --plan "<goal>"               propose a plan, don't execute
+  enter --execute-plan <plan-path>    execute a previously proposed plan
   enter export <session-id>
   enter version
   enter help
@@ -93,6 +111,8 @@ USAGE
 FLAGS
   --print               headless one-shot
   --autonomous <goal>   run autonomous loop until done/max-turns
+  --plan <goal>         plan-first mode: investigate read-only, propose a plan, exit
+  --execute-plan <path> execute a plan saved earlier under ~/.enter/plans/
   --model <id>          provider-specific model id
   --provider <name>     provider (e.g. anthropic, openai)
   --soul <path>         override SOUL.md path

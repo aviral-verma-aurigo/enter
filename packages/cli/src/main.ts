@@ -1,4 +1,5 @@
 import crypto from "node:crypto";
+import fs from "node:fs";
 import os from "node:os";
 import {
   resolvePaths,
@@ -19,6 +20,9 @@ import {
   buildAdoTools,
   AtlassianTokenAuth,
   buildConfluenceTools,
+  AhaApiKeyAuth,
+  buildAhaTools,
+  McpClientManager,
   type AdoAuthorizer,
   type ToolContext,
 } from "@enter/core";
@@ -30,6 +34,26 @@ import { runTuiMode } from "./modes/tui.js";
 import type { SlashContext } from "./slash/index.js";
 
 const PKG_VERSION = "0.1.0";
+
+const PLAN_FIRST_DIRECTIVE =
+  "[plan-first mode] Investigate read-only (read/grep/glob/recall), then call the " +
+  "`propose_plan` tool with a numbered step list and exit. DO NOT call write, edit, " +
+  "bash, or any other mutating tool. The user will review the saved plan and execute " +
+  "it separately via `enter --execute-plan <path>`.";
+
+function buildAutonomousGoal(args: { autonomous?: string; plan?: string; executePlan?: string }): string {
+  if (args.plan) {
+    return `${PLAN_FIRST_DIRECTIVE}\n\nGoal: ${args.plan}`;
+  }
+  if (args.executePlan) {
+    const planBody = fs.readFileSync(args.executePlan, "utf8");
+    return (
+      `Execute the following plan that the user previously reviewed and approved.\n` +
+      `Source: ${args.executePlan}\n\n${planBody}`
+    );
+  }
+  return args.autonomous!;
+}
 
 export async function main(argv: string[]): Promise<void> {
   const args = parseArgs(argv);
@@ -79,6 +103,7 @@ export async function main(argv: string[]): Promise<void> {
     cwd,
     projectHash,
     channelKey: null,
+    userKey: null,
   };
 
   const repo = new JsonlSessionRepo(paths.sessionsDir);
@@ -87,7 +112,10 @@ export async function main(argv: string[]): Promise<void> {
     ...(args.session ? { sessionId: args.session } : {}),
   });
 
-  const doneSignal = args.autonomous ? new DoneSignal() : undefined;
+  // Plan-first mode (`--plan`) and execute-plan mode (`--execute-plan`) both ride
+  // the autonomous loop, so they need a DoneSignal too.
+  const isAutonomous = Boolean(args.autonomous || args.plan || args.executePlan);
+  const doneSignal = isAutonomous ? new DoneSignal() : undefined;
 
   // Optional integration tools registered when env vars are present.
   const extraTools: AgentTool[] = [];
@@ -134,6 +162,25 @@ export async function main(argv: string[]): Promise<void> {
     logger.info("Registered Confluence tools", { count: 3, baseUrl: confluenceBase });
   }
 
+  const ahaBase = process.env["AHA_BASE_URL"];
+  const ahaKey = process.env["AHA_API_KEY"];
+  if (ahaBase && ahaKey) {
+    const auth = new AhaApiKeyAuth({ baseUrl: ahaBase, apiKey: ahaKey });
+    const requesterTag = `${os.userInfo().username}@cli`;
+    extraTools.push(
+      ...buildAhaTools({ auth, baseUrl: ahaBase, requestedBy: () => requesterTag }),
+    );
+    logger.info("Registered Aha! tools", { count: 3, baseUrl: ahaBase });
+  }
+
+  // External MCP servers configured under `mcpServers` in `config.json`. Each
+  // server is spawned over stdio and its tools are namespaced `mcp_<server>_*`.
+  const mcpManager = new McpClientManager();
+  if (config.mcpServers && Object.keys(config.mcpServers).length > 0) {
+    const mcpTools = await mcpManager.start(config.mcpServers);
+    extraTools.push(...mcpTools);
+  }
+
   const { agent } = buildAgent({
     ctx,
     paths,
@@ -159,8 +206,9 @@ export async function main(argv: string[]): Promise<void> {
   process.on("SIGINT", onSigint);
 
   try {
-    if (doneSignal && args.autonomous) {
-      const result = await runAutonomous(agent, args.autonomous, {
+    if (doneSignal && (args.autonomous || args.plan || args.executePlan)) {
+      const goal = buildAutonomousGoal(args);
+      const result = await runAutonomous(agent, goal, {
         doneSignal,
         maxTurns: config.autonomy.maxTurns,
         idleStallTurns: config.autonomy.idleStallTurns,
@@ -203,6 +251,7 @@ export async function main(argv: string[]): Promise<void> {
   } finally {
     process.off("SIGINT", onSigint);
     detachRepo();
+    await mcpManager.stop();
     memory.close();
     process.stdout.write(`\n[session ${sessionMeta.sessionId}]\n`);
   }
