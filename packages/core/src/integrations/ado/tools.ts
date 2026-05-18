@@ -143,6 +143,63 @@ export function adoWorkItemCommentTool(opts: AdoToolsOptions): AgentTool<typeof 
   };
 }
 
+/**
+ * Add a PR URL as a `Hyperlink` relation on an ADO work item.
+ * Shared between `adoWorkItemLinkPrTool` and the github_pr_open auto-link flow.
+ *
+ * Returns `{ ok: true }` on success, or `{ ok: false, status, error }` on failure.
+ * Callers decide whether a failure should propagate or be best-effort.
+ */
+export async function linkPrToWorkItem(
+  opts: AdoToolsOptions,
+  workItemId: number,
+  prUrl: string,
+  comment?: string,
+): Promise<{ ok: boolean; status?: number; error?: string }> {
+  const patch = [
+    {
+      op: "add",
+      path: "/relations/-",
+      value: {
+        rel: "Hyperlink",
+        url: prUrl,
+        attributes: { comment: comment ?? `PR opened — ${opts.requestedBy()}` },
+      },
+    },
+  ];
+  const res = await adoFetch(opts, `_apis/wit/workitems/${workItemId}?api-version=${API_VERSION}`, {
+    method: "PATCH",
+    body: patch,
+  });
+  if (!res.ok) return { ok: false, status: res.status, error: res.text.slice(0, 500) };
+  return { ok: true };
+}
+
+/**
+ * Build the human-facing URL for an ADO work item.
+ */
+export function adoWorkItemUrl(orgUrl: string, id: number): string {
+  return `${orgUrl.replace(/\/$/, "")}/_workitems/edit/${id}`;
+}
+
+/**
+ * Scan free-form text for `AB#NNNN` patterns. Returns unique numeric IDs in order of first appearance.
+ * Bare `#NNNN` is intentionally NOT matched — it collides with GitHub issue references.
+ */
+export function extractAdoWorkItemIds(text: string): number[] {
+  const seen = new Set<number>();
+  const out: number[] = [];
+  const re = /\bAB#(\d{1,9})\b/g;
+  for (const m of text.matchAll(re)) {
+    const id = Number(m[1]);
+    if (!seen.has(id)) {
+      seen.add(id);
+      out.push(id);
+    }
+  }
+  return out;
+}
+
 const WorkItemLinkPrParams = Type.Object({
   id: Type.Integer({ minimum: 1 }),
   pr_url: Type.String({ description: "Pull request URL. Any GitHub/ADO/Bitbucket PR URL is fine." }),
@@ -159,24 +216,10 @@ export function adoWorkItemLinkPrTool(opts: AdoToolsOptions): AgentTool<typeof W
     parameters: WorkItemLinkPrParams,
     executionMode: "sequential",
     execute: async (_id, params: WorkItemLinkPrP) => {
-      const patch = [
-        {
-          op: "add",
-          path: "/relations/-",
-          value: {
-            rel: "Hyperlink",
-            url: params.pr_url,
-            attributes: { comment: params.comment ?? `PR opened — ${opts.requestedBy()}` },
-          },
-        },
-      ];
-      const res = await adoFetch(opts, `_apis/wit/workitems/${params.id}?api-version=${API_VERSION}`, {
-        method: "PATCH",
-        body: patch,
-      });
+      const res = await linkPrToWorkItem(opts, params.id, params.pr_url, params.comment);
       if (!res.ok) {
         return {
-          content: [{ type: "text", text: `ADO link-PR failed (HTTP ${res.status}):\n${res.text.slice(0, 1500)}` }],
+          content: [{ type: "text", text: `ADO link-PR failed (HTTP ${res.status}):\n${res.error}` }],
           details: { id: params.id, status: res.status },
           isError: true,
         };

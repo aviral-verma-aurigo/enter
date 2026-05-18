@@ -130,6 +130,145 @@ describe("github_pr_open", () => {
     expect(args.base).toBe("develop");
     expect(args.draft).toBe(true);
   });
+
+  it("auto-detects AB#NNNN references in title+body and injects ADO URLs (no adoAuth = body only, no API call)", async () => {
+    worktrees.register("ch1", {
+      path: path.join(tmpDir, "ch1", "main"),
+      repo: "acme/foo",
+      ref: "main",
+    });
+    const tool = githubPrOpenTool({
+      channelKey: "ch1",
+      worktrees,
+      auth: fakeAuth,
+      adoOrgUrl: "https://dev.azure.com/acme-org",
+    });
+    const r = await tool.execute("t1", {
+      title: "Fix login (AB#1234)",
+      body: "Closes AB#1234. Related to AB#5678.",
+      head: "enter/fix-login",
+    });
+    expect(r.isError).toBeUndefined();
+    const args = pullsCreate.mock.calls[0]![0] as { body: string };
+    expect(args.body).toContain("### Linked ADO work items");
+    expect(args.body).toContain("[AB#1234](https://dev.azure.com/acme-org/_workitems/edit/1234)");
+    expect(args.body).toContain("[AB#5678](https://dev.azure.com/acme-org/_workitems/edit/5678)");
+    const details = r.details as { adoWorkItems: number[]; adoLinkResults: unknown[] };
+    expect(details.adoWorkItems).toEqual([1234, 5678]);
+    expect(details.adoLinkResults).toEqual([]); // no adoAuth → no PATCH attempted
+  });
+
+  it("posts Hyperlink relations back to each ADO work item when adoAuth is provided", async () => {
+    worktrees.register("ch1", {
+      path: path.join(tmpDir, "ch1", "main"),
+      repo: "acme/foo",
+      ref: "main",
+    });
+    // Stub fetch for the ADO PATCH calls
+    const fetchCalls: Array<{ url: string; method: string; body: unknown }> = [];
+    vi.stubGlobal(
+      "fetch",
+      async (url: string, init: { method?: string; body?: string }) => {
+        fetchCalls.push({
+          url,
+          method: init.method ?? "GET",
+          body: init.body !== undefined ? JSON.parse(init.body) : undefined,
+        });
+        return {
+          ok: true,
+          status: 200,
+          async text() {
+            return "{}";
+          },
+        } as unknown as Response;
+      },
+    );
+
+    const adoAuth = {
+      async getAuthHeader() {
+        return "Basic fake";
+      },
+    };
+    const tool = githubPrOpenTool({
+      channelKey: "ch1",
+      worktrees,
+      auth: fakeAuth,
+      adoOrgUrl: "https://dev.azure.com/acme-org",
+      adoAuth,
+    });
+    const r = await tool.execute("t1", {
+      title: "Implement AB#1234",
+      body: "Done.",
+      head: "enter/x",
+    });
+    expect(r.isError).toBeUndefined();
+    expect(fetchCalls).toHaveLength(1);
+    expect(fetchCalls[0]!.method).toBe("PATCH");
+    expect(fetchCalls[0]!.url).toMatch(/_apis\/wit\/workitems\/1234/);
+    const patch = fetchCalls[0]!.body as Array<{ op: string; value: { rel: string; url: string } }>;
+    expect(patch[0]!.value.rel).toBe("Hyperlink");
+    expect(patch[0]!.value.url).toBe("https://github.com/acme/foo/pull/42");
+    const details = r.details as { adoLinkResults: Array<{ id: number; ok: boolean }> };
+    expect(details.adoLinkResults).toEqual([{ id: 1234, ok: true }]);
+    vi.unstubAllGlobals();
+  });
+
+  it("PR open succeeds even when ADO link calls fail (best-effort)", async () => {
+    worktrees.register("ch1", {
+      path: path.join(tmpDir, "ch1", "main"),
+      repo: "acme/foo",
+      ref: "main",
+    });
+    vi.stubGlobal(
+      "fetch",
+      async () =>
+        ({
+          ok: false,
+          status: 403,
+          async text() {
+            return "Forbidden";
+          },
+        }) as unknown as Response,
+    );
+    const adoAuth = {
+      async getAuthHeader() {
+        return "Basic fake";
+      },
+    };
+    const tool = githubPrOpenTool({
+      channelKey: "ch1",
+      worktrees,
+      auth: fakeAuth,
+      adoOrgUrl: "https://dev.azure.com/acme-org",
+      adoAuth,
+    });
+    const r = await tool.execute("t1", {
+      title: "AB#999",
+      body: "x",
+      head: "h",
+    });
+    expect(r.isError).toBeUndefined(); // PR open is what matters
+    const details = r.details as { adoLinkResults: Array<{ id: number; ok: boolean; status?: number }> };
+    expect(details.adoLinkResults).toEqual([{ id: 999, ok: false, status: 403, error: "Forbidden" }]);
+    vi.unstubAllGlobals();
+  });
+
+  it("no auto-link when adoOrgUrl is not configured (backward compat)", async () => {
+    worktrees.register("ch1", {
+      path: path.join(tmpDir, "ch1", "main"),
+      repo: "acme/foo",
+      ref: "main",
+    });
+    const tool = githubPrOpenTool({ channelKey: "ch1", worktrees, auth: fakeAuth }); // no adoOrgUrl
+    await tool.execute("t1", {
+      title: "AB#1234 fix",
+      body: "Closes AB#1234.",
+      head: "h",
+    });
+    const args = pullsCreate.mock.calls[0]![0] as { body: string };
+    expect(args.body).not.toContain("Linked ADO work items");
+    expect(args.body).not.toContain("_workitems/edit");
+  });
 });
 
 describe("github_pr_comment", () => {

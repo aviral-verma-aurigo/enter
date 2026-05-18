@@ -57,6 +57,9 @@ export function buildBotTools(options: BuildBotToolsOptions): AgentTool[] {
         worktrees: options.worktrees,
         auth: options.auth,
         requestedBy: options.requestedBy,
+        // Auto-link ADO work items when both an ADO authorizer and org URL are configured.
+        ...(options.adoAuth ? { adoAuth: options.adoAuth } : {}),
+        ...(options.adoOrgUrl ? { adoOrgUrl: options.adoOrgUrl } : {}),
       }),
       githubPrCommentTool({
         channelKey: options.channelKey,

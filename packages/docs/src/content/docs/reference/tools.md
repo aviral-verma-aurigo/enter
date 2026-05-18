@@ -78,7 +78,7 @@ These tools are registered only in `@enter/teams-bot`. They never run in the CLI
 | `git_clone` | Clone a GitHub repo into the channel's ephemeral worktree using the bot's GitHub App credentials. | `repo`, `ref?` |
 | `git_push` | Push a branch to the remote using the bot's GitHub App credentials. | `branch`, `set_upstream?` |
 | `run_tests` | Detect and run the project's test suite. Auto-detects npm/pytest/cargo/go/maven/gradle/bundler. | `command?`, `timeout_ms?` |
-| `github_pr_open` | Open a PR on the channel's currently-cloned repo. Bot never merges. | `title`, `body`, `head`, `base?`, `draft?` |
+| `github_pr_open` | Open a PR on the channel's currently-cloned repo. Auto-detects `AB#NNNN` work-item references in the title and body, injects a "Linked ADO work items" section into the PR body, and (best-effort) adds a Hyperlink relation on each referenced work item pointing back at the new PR. Bot never merges. | `title`, `body`, `head`, `base?`, `draft?` |
 | `github_pr_comment` | Add a comment to an existing PR on the channel's currently-cloned repo. | `pr_number`, `body` |
 
 :::caution[Denylist]
