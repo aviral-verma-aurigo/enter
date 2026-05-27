@@ -108,14 +108,19 @@ export class MemoryStore {
     const db = new Database(dbPath);
     db.pragma("journal_mode = WAL");
     db.pragma("foreign_keys = ON");
-    db.exec(SCHEMA);
-    // Migrate pre-user_key databases: add column + rebuild the unique index so
-    // identical-named user memories from different teammates can coexist.
-    const cols = db.prepare(`PRAGMA table_info(memories)`).all() as Array<{ name: string }>;
-    if (!cols.some((c) => c.name === "user_key")) {
-      db.exec(`ALTER TABLE memories ADD COLUMN user_key TEXT`);
-      db.exec(`CREATE INDEX IF NOT EXISTS idx_user ON memories(user_key)`);
+    // Migrate pre-user_key databases BEFORE running SCHEMA. SCHEMA references
+    // `user_key` (idx_user index), so if the table predates that column we
+    // need to ALTER first or the CREATE INDEX statement fails.
+    const tableExists = db
+      .prepare(`SELECT name FROM sqlite_master WHERE type='table' AND name='memories'`)
+      .get();
+    if (tableExists) {
+      const cols = db.prepare(`PRAGMA table_info(memories)`).all() as Array<{ name: string }>;
+      if (!cols.some((c) => c.name === "user_key")) {
+        db.exec(`ALTER TABLE memories ADD COLUMN user_key TEXT`);
+      }
     }
+    db.exec(SCHEMA);
     db.exec(`DROP INDEX IF EXISTS idx_type_name_scope`);
     db.exec(
       `CREATE UNIQUE INDEX IF NOT EXISTS idx_type_name_scope

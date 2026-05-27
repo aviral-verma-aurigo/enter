@@ -13,6 +13,8 @@ enter --print "<prompt>"
 enter --autonomous "<goal>" [--max-turns N]
 enter --plan "<goal>"
 enter --execute-plan <path-to-saved-plan>
+enter login [--provider <name>]
+enter logout [--provider <name>]
 enter export <session-id>
 enter version
 enter help
@@ -48,15 +50,25 @@ Terminals narrower than 47 columns collapse the banner to a single compact heade
 
 ## Subcommands
 
+- `enter login [--provider <name>]` — prompt for an API key and persist it to `~/.enter/keys.json` (mode `0600`). Provider defaults to `config.provider`. Use this to rotate a key, or to add a key for a non-default provider (e.g. `enter login --provider openai`). On the very first run, if no key is configured anywhere, `enter` auto-prompts before the agent starts — you don't need to call `login` first.
+- `enter logout [--provider <name>]` — remove the saved key for the named provider. Idempotent: removing a provider that isn't saved is a no-op. If the file ends up empty, it's deleted entirely.
 - `enter export <session-id>` — dumps the session as markdown + JSONL to `~/.enter/exports/`. Equivalent to running `/export` inside a live session.
 - `enter version` — prints the CLI version.
 - `enter help` — prints the help block.
+
+## Key resolution order
+
+When `enter` needs a key for the active provider, it tries these in order:
+
+1. The provider's standard env var (e.g. `ANTHROPIC_API_KEY`, `OPENAI_API_KEY`). Always wins if set.
+2. `~/.enter/keys.json`, indexed by provider name.
+3. If neither is present *and* stdin/stdout are TTYs, auto-prompt the user (and persist the answer to `keys.json`). In a non-TTY context (CI, `--print` via pipe), an `AuthError` is thrown so the run fails fast instead of hanging.
 
 ## Environment variables
 
 | Variable | Effect |
 |---|---|
-| `ANTHROPIC_API_KEY` | Required for the default Anthropic provider. |
+| `ANTHROPIC_API_KEY` | Override for the persisted Anthropic key. If unset, the value in `~/.enter/keys.json` is used; if that's empty too, first run prompts you for one. |
 | `ENTER_HOME` | Override `~/.enter` (state root). |
 | `ENTER_MODEL` | Default model id (overridden by `--model`). |
 | `ENTER_PROVIDER` | Default provider (overridden by `--provider`). |

@@ -1,5 +1,6 @@
 import readline from "node:readline";
 import type { Agent } from "@earendil-works/pi-agent-core";
+import { toolPreview } from "../tui/tool-preview.js";
 import { dispatchSlash, type SlashContext } from "../slash/index.js";
 
 export interface InteractiveOptions {
@@ -27,11 +28,14 @@ export async function runInteractiveMode(opts: InteractiveOptions): Promise<void
       case "turn_end":
         process.stdout.write("\n");
         break;
-      case "tool_execution_start":
-        process.stdout.write(`\n[tool] ${event.toolName} starting…\n`);
+      case "tool_execution_start": {
+        const preview = toolPreview(event.toolName, event.args);
+        const detail = preview ? `  ${preview}` : "";
+        process.stdout.write(`\n[tool] ${event.toolName}${detail}\n`);
         break;
+      }
       case "tool_execution_end":
-        process.stdout.write(`[tool] ${event.toolName} ${event.isError ? "ERROR" : "ok"}\n`);
+        process.stdout.write(`[tool] ${event.toolName} ${event.isError ? "✗" : "✓"}\n`);
         break;
       default:
         break;

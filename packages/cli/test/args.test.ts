@@ -90,6 +90,33 @@ describe("parseArgs", () => {
   it("throws on unknown flags", () => {
     expect(() => parseArgs(["--nope"])).toThrow(/Unknown flag/);
   });
+
+  it("recognizes 'login' with no flags", () => {
+    const a = parseArgs(["login"]);
+    expect(a.command).toBe("login");
+    expect(a.provider).toBeUndefined();
+  });
+
+  it("recognizes 'login --provider <name>'", () => {
+    const a = parseArgs(["login", "--provider", "openai"]);
+    expect(a.command).toBe("login");
+    expect(a.provider).toBe("openai");
+  });
+
+  it("recognizes 'logout' with and without --provider", () => {
+    expect(parseArgs(["logout"]).command).toBe("logout");
+    const a = parseArgs(["logout", "--provider", "anthropic"]);
+    expect(a.command).toBe("logout");
+    expect(a.provider).toBe("anthropic");
+  });
+
+  it("throws when 'login --provider' is missing a value", () => {
+    expect(() => parseArgs(["login", "--provider"])).toThrow(/--provider requires/);
+  });
+
+  it("throws on unknown flag after 'login'", () => {
+    expect(() => parseArgs(["login", "--nope"])).toThrow(/Unknown flag for 'login'/);
+  });
 });
 
 describe("helpText", () => {
@@ -111,5 +138,7 @@ describe("helpText", () => {
     expect(t).toContain("--simple");
     expect(t).toContain("--plan");
     expect(t).toContain("--execute-plan");
+    expect(t).toContain("enter login");
+    expect(t).toContain("enter logout");
   });
 });
