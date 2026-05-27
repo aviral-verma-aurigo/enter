@@ -9,9 +9,9 @@ Variables grouped by what reads them.
 
 | Variable | Effect |
 |---|---|
-| `ANTHROPIC_API_KEY` | Required for the default `anthropic` provider. Also used by `delegate_to_claude_code` and the `author_skill` critique. |
+| `ANTHROPIC_API_KEY` | Override for the persisted Anthropic key. If unset, the value at `~/.enter/keys.json` is used; if that's empty too, the CLI prompts on first run (see [`enter login`](/usage/cli/#subcommands)). Also used by `delegate_to_claude_code` and the `author_skill` critique. |
 
-Additional provider keys depend on which model provider you're using (e.g. `OPENAI_API_KEY` for `provider: "openai"`).
+Additional provider keys depend on which model provider you're using (e.g. `OPENAI_API_KEY` for `provider: "openai"`). The same resolution order applies — env var → `keys.json` → first-run prompt.
 
 ## CLI overrides
 

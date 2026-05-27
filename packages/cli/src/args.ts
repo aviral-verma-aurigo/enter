@@ -1,5 +1,5 @@
 export interface CliArgs {
-  command: "run" | "export" | "version" | "help";
+  command: "run" | "export" | "version" | "help" | "login" | "logout";
   positional: string[];
   print: boolean;
   autonomous?: string;
@@ -36,6 +36,20 @@ export function parseArgs(argv: string[]): CliArgs {
   if (argv[0] === "export") {
     out.command = "export";
     if (argv[1]) out.exportSessionId = argv[1];
+    return out;
+  }
+  if (argv[0] === "login" || argv[0] === "logout") {
+    out.command = argv[0];
+    for (let i = 1; i < argv.length; i++) {
+      const a = argv[i]!;
+      if (a === "--provider") {
+        const v = argv[++i];
+        if (!v) throw new Error("--provider requires a name");
+        out.provider = v;
+      } else {
+        throw new Error(`Unknown flag for '${argv[0]}': ${a}`);
+      }
+    }
     return out;
   }
   for (let i = 0; i < argv.length; i++) {
@@ -104,6 +118,8 @@ USAGE
   enter --autonomous "<goal>" [--max-turns N]
   enter --plan "<goal>"               propose a plan, don't execute
   enter --execute-plan <plan-path>    execute a previously proposed plan
+  enter login [--provider <name>]     save an API key to ~/.enter/keys.json
+  enter logout [--provider <name>]    remove a saved API key
   enter export <session-id>
   enter version
   enter help
@@ -122,7 +138,7 @@ FLAGS
   --simple              use plain readline REPL instead of the rich interactive UI
 
 ENV
-  ANTHROPIC_API_KEY     required for default provider
+  ANTHROPIC_API_KEY     overrides the saved key (otherwise read from ~/.enter/keys.json)
   ENTER_HOME            override ~/.enter
   ENTER_MODEL           default model id
   ENTER_PROVIDER        default provider

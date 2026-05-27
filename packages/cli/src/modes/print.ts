@@ -1,4 +1,5 @@
 import type { Agent } from "@earendil-works/pi-agent-core";
+import { toolPreview } from "../tui/tool-preview.js";
 
 export interface PrintModeOptions {
   prompt: string;
@@ -30,12 +31,15 @@ export async function runPrintMode(opts: PrintModeOptions): Promise<{ finalText:
         }
         break;
       }
-      case "tool_execution_start":
+      case "tool_execution_start": {
         pendingToolName = event.toolName;
-        process.stderr.write(`[tool] ${pendingToolName} starting…\n`);
+        const preview = toolPreview(event.toolName, event.args);
+        const detail = preview ? `  ${preview}` : "";
+        process.stderr.write(`[tool] ${pendingToolName}${detail}\n`);
         break;
+      }
       case "tool_execution_end":
-        process.stderr.write(`[tool] ${event.toolName} ${event.isError ? "ERROR" : "ok"}\n`);
+        process.stderr.write(`[tool] ${event.toolName} ${event.isError ? "✗" : "✓"}\n`);
         break;
       default:
         break;

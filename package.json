@@ -23,7 +23,9 @@
     "dev:cli": "tsx packages/cli/src/cli.ts",
     "dev:bot": "tsx packages/teams-bot/src/server.ts",
     "dev:docs": "npm run --workspace @enter/docs dev",
-    "build:docs": "npm run --workspace @enter/docs build"
+    "build:docs": "npm run --workspace @enter/docs build",
+    "install:local": "npm run build:core && npm run build:cli && npm link --workspace @enter/core && npm link @enter/core --workspace @enter/cli && npm link --workspace @enter/cli",
+    "uninstall:local": "npm unlink -g @enter/cli @enter/core"
   },
   "devDependencies": {
     "typescript": "^5.6.0",

@@ -4,13 +4,22 @@ import { color, colorize } from "./color.js";
 const C_USER = colorize(color.cyan);
 const C_ASSISTANT_LABEL = colorize(color.green);
 const C_TOOL = colorize(color.magenta);
+const C_BOLD = colorize(color.bold);
 const C_DIM = colorize(color.dim);
+const C_GREEN = colorize(color.green);
+const C_RED = colorize(color.red);
 const C_ERROR = colorize(color.red);
 
 interface Block {
   kind: "user" | "assistant" | "tool" | "system" | "error";
+  /** Unique tool call ID — used to match start→end for in-place update. */
+  toolCallId?: string;
   toolName?: string;
+  toolPreview?: string;
+  /** undefined = in-progress, true = ok, false = error */
   toolOk?: boolean;
+  toolElapsedMs?: number;
+  toolStartedAt?: number;
   text: string;
 }
 
@@ -18,8 +27,8 @@ interface Block {
  * Scrolling conversation view. Appends blocks; renders them word-wrapped to the
  * current width with subtle ANSI coloring per block kind.
  *
- * Designed so the active assistant block can be streamed token-by-token via
- * `appendToAssistant()` without re-pushing blocks.
+ * Tool blocks are pushed once on start and mutated in-place on end, giving a
+ * single status line per tool call (Claude Code–style) rather than two lines.
  */
 export class Transcript implements Component {
   private blocks: Block[] = [];
@@ -45,21 +54,33 @@ export class Transcript implements Component {
     this.trim();
   }
 
-  pushToolStart(toolName: string): void {
-    // We don't end the assistant block on tool-start because the model often
-    // emits text → tool → more text in the same turn; keep the in-progress
-    // assistant block live but flush a tool status line in between.
-    this.blocks.push({ kind: "tool", toolName, text: `${toolName} starting…` });
+  pushToolStart(toolCallId: string, toolName: string, preview: string): void {
+    // Don't end the assistant block — the model often emits text → tool → more text
+    // in the same turn. Keep the in-progress assistant block live.
+    this.blocks.push({
+      kind: "tool",
+      toolCallId,
+      toolName,
+      toolPreview: preview,
+      toolStartedAt: Date.now(),
+      toolOk: undefined,
+      text: "",
+    });
     this.trim();
   }
 
-  pushToolEnd(toolName: string, isError: boolean): void {
-    this.blocks.push({
-      kind: "tool",
-      toolName,
-      toolOk: !isError,
-      text: `${toolName} ${isError ? "error" : "ok"}`,
-    });
+  pushToolEnd(toolCallId: string, isError: boolean): void {
+    // Find the matching in-progress block and update it in place.
+    for (let i = this.blocks.length - 1; i >= 0; i--) {
+      const b = this.blocks[i];
+      if (b && b.kind === "tool" && b.toolCallId === toolCallId && b.toolOk === undefined) {
+        b.toolOk = !isError;
+        b.toolElapsedMs = b.toolStartedAt !== undefined ? Date.now() - b.toolStartedAt : undefined;
+        return;
+      }
+    }
+    // Fallback: no matching block found — push a minimal end-only entry.
+    this.blocks.push({ kind: "tool", toolCallId, toolOk: !isError, text: toolCallId });
     this.trim();
   }
 
@@ -94,7 +115,7 @@ export class Transcript implements Component {
           out.push("");
           break;
         case "tool":
-          out.push(C_TOOL("· ") + C_DIM(block.text));
+          out.push(renderTool(block));
           break;
         case "system":
           out.push(C_DIM("· " + block.text));
@@ -112,6 +133,27 @@ export class Transcript implements Component {
       this.blocks.splice(0, this.blocks.length - this.maxBlocks);
     }
   }
+}
+
+function renderTool(block: Block): string {
+  const name = block.toolName ?? block.text;
+  const preview = block.toolPreview ?? "";
+
+  if (block.toolOk === undefined) {
+    // In-progress: magenta bullet + bold tool name + dim preview
+    return C_TOOL("· ") + C_BOLD(name) + (preview ? C_DIM("  " + preview) : "");
+  }
+
+  const detail = name + (preview ? "  " + preview : "");
+  if (block.toolOk) {
+    const timing = block.toolElapsedMs !== undefined ? "  " + fmtMs(block.toolElapsedMs) : "";
+    return C_GREEN("✓ ") + C_DIM(detail + timing);
+  }
+  return C_RED("✗ ") + C_DIM(detail);
+}
+
+function fmtMs(ms: number): string {
+  return ms < 1000 ? `${ms}ms` : `${(ms / 1000).toFixed(1)}s`;
 }
 
 /** ANSI-aware soft wrap. We avoid splitting escape sequences. */
@@ -138,7 +180,7 @@ function wrapLines(lines: string[], width: number): string[] {
   return out;
 }
 
-const ANSI_RE = /\[[0-9;]*m/g;
+const ANSI_RE = /\[[0-9;]*m/g;
 
 function visibleWidth(s: string): number {
   return s.replace(ANSI_RE, "").length;
@@ -148,7 +190,7 @@ function sliceVisible(s: string, width: number): string {
   let visible = 0;
   let i = 0;
   while (i < s.length && visible < width) {
-    if (s[i] === "" && s[i + 1] === "[") {
+    if (s[i] === "" && s[i + 1] === "[") {
       const end = s.indexOf("m", i + 2);
       if (end !== -1) {
         i = end + 1;
