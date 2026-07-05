@@ -74,6 +74,7 @@ export default defineConfig({
           items: [
             { label: "CLI on Your Machine", slug: "deploy/cli" },
             { label: "Teams Bot", slug: "deploy/teams-bot" },
+            { label: "IT Approval Checklist", slug: "deploy/it-checklist" },
             { label: "GitHub App Setup", slug: "deploy/github-app" },
             { label: "Repository Settings", slug: "deploy/repo-settings" },
           ],

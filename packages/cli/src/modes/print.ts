@@ -19,6 +19,10 @@ export async function runPrintMode(opts: PrintModeOptions): Promise<{ finalText:
       case "turn_end": {
         turns += 1;
         const msg = event.message;
+        const errMsg = (msg as { errorMessage?: string }).errorMessage;
+        if (errMsg) {
+          process.stderr.write(`[agent error] ${errMsg}\n`);
+        }
         if (Array.isArray(msg.content)) {
           const parts: string[] = [];
           for (const block of msg.content) {

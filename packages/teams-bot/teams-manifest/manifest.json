@@ -1,0 +1,51 @@
+{
+  "$schema": "https://developer.microsoft.com/en-us/json-schemas/teams/v1.16/MicrosoftTeams.schema.json",
+  "manifestVersion": "1.16",
+  "version": "0.1.0",
+  "id": "REPLACE_WITH_MICROSOFT_APP_ID",
+  "packageName": "com.yourorg.enterbot",
+  "developer": {
+    "name": "Your Org",
+    "websiteUrl": "https://example.com",
+    "privacyUrl": "https://example.com/privacy",
+    "termsOfUseUrl": "https://example.com/terms"
+  },
+  "name": {
+    "short": "Enter",
+    "full": "Enter — autonomous teammate"
+  },
+  "description": {
+    "short": "Turns conversations into pull requests.",
+    "full": "Enter is an autonomous teammate that turns conversations into pull requests. Mention it in a channel and the whole team watches it work. It only operates in public channels; direct messages are refused so every interaction stays visible."
+  },
+  "icons": {
+    "color": "color.png",
+    "outline": "outline.png"
+  },
+  "accentColor": "#94A3B8",
+  "bots": [
+    {
+      "botId": "REPLACE_WITH_MICROSOFT_APP_ID",
+      "scopes": ["team", "groupchat"],
+      "supportsFiles": false,
+      "isNotificationOnly": false,
+      "commandLists": [
+        {
+          "scopes": ["team", "groupchat"],
+          "commands": [
+            {
+              "title": "help",
+              "description": "What Enter can do and how to ask"
+            },
+            {
+              "title": "open a PR",
+              "description": "Describe a change; Enter branches, commits, and opens a pull request"
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "permissions": ["messageTeamMembers"],
+  "validDomains": []
+}
