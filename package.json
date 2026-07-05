@@ -20,6 +20,7 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "lint": "eslint \"packages/*/src/**/*.ts\"",
+    "verify:deploy": "node scripts/verify-deployment.mjs",
     "dev:cli": "tsx packages/cli/src/cli.ts",
     "dev:bot": "tsx packages/teams-bot/src/server.ts",
     "dev:docs": "npm run --workspace @enter/docs dev",
