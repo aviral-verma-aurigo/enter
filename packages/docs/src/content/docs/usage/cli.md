@@ -37,7 +37,8 @@ Terminals narrower than 47 columns collapse the banner to a single compact heade
 | `--plan <goal>` | Plan-first mode. Investigate read-only, then call `propose_plan` and exit. Plan saved to `~/.enter/plans/<timestamp>-<slug>.md`. |
 | `--execute-plan <path>` | Execute a plan saved earlier. The plan body is injected as the autonomous goal. |
 | `--max-turns <n>` | Cap the autonomous loop. Overrides `config.autonomy.maxTurns`. |
-| `--model <id>` | Provider-specific model ID. Overrides `config.model` and `ENTER_MODEL`. |
+| `--model <id>` | Main model for thinking/planning (the interactive agent, `--print`, `--plan`, `--autonomous`). Overrides `config.model` and `ENTER_MODEL`. |
+| `--execution-model <id>` | Model for execution work: subagents, skill authoring, and `--execute-plan` runs. Overrides `config.executionModel` and `ENTER_EXECUTION_MODEL`. |
 | `--provider <name>` | Provider key (e.g. `anthropic`, `openai`). Overrides `config.provider` and `ENTER_PROVIDER`. |
 | `--soul <path>` | Use a specific SOUL.md instead of project/user/bundled discovery. |
 | `--session <id>` | Resume a session by ID. Without this flag, a new ULID is allocated. |
@@ -58,7 +59,8 @@ Terminals narrower than 47 columns collapse the banner to a single compact heade
 |---|---|
 | `ANTHROPIC_API_KEY` | Required for the default Anthropic provider. |
 | `ENTER_HOME` | Override `~/.enter` (state root). |
-| `ENTER_MODEL` | Default model id (overridden by `--model`). |
+| `ENTER_MODEL` | Default main (thinking/planning) model id (overridden by `--model`). |
+| `ENTER_EXECUTION_MODEL` | Default execution model id (overridden by `--execution-model`). |
 | `ENTER_PROVIDER` | Default provider (overridden by `--provider`). |
 | `ENTER_LOG` | `debug` / `info` / `warn` / `error` — default `info`. |
 | `NO_COLOR` | Standard NO_COLOR; disables ANSI. |

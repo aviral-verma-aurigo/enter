@@ -65,7 +65,10 @@ export type McpServer = Static<typeof McpServerSchema>;
 
 export const EnterConfigSchema = Type.Object({
   provider: Type.String(),
+  /** Model for the main agent — thinking, planning, and conversation. */
   model: Type.String(),
+  /** Model for execution surfaces: subagents, skill authoring, and `--execute-plan` runs. */
+  executionModel: Type.String(),
   thinkingLevel: ThinkingLevelSchema,
   thinkingBudgets: ThinkingBudgetsSchema,
   autonomy: AutonomySchema,
@@ -81,7 +84,8 @@ export type EnterConfig = Static<typeof EnterConfigSchema>;
 
 export const DEFAULT_CONFIG: EnterConfig = {
   provider: "anthropic",
-  model: "claude-opus-4-7",
+  model: "claude-fable-5",
+  executionModel: "claude-sonnet-5",
   thinkingLevel: "medium",
   thinkingBudgets: { low: 1024, medium: 4096, high: 16384 },
   autonomy: { maxTurns: 50, idleStallTurns: 2, wallClockMinutes: 30 },

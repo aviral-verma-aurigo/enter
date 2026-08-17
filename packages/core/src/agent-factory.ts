@@ -14,6 +14,8 @@ export interface BuildAgentOptions {
   ctx: ToolContext;
   paths: EnterPaths;
   model: Model<any>;
+  /** Model for execution surfaces (subagents, skill authoring). Defaults to `model`. */
+  executionModel?: Model<any>;
   apiKey: string;
   thinkingLevel: ThinkingLevel;
   thinkingBudgets?: ThinkingBudgets;
@@ -54,6 +56,7 @@ export function buildAgent(opts: BuildAgentOptions): { agent: Agent; tools: Agen
   const tools = registerBuiltinTools({
     ctx: opts.ctx,
     model: opts.model,
+    ...(opts.executionModel ? { executionModel: opts.executionModel } : {}),
     apiKey: opts.apiKey,
     ...(opts.doneSignal ? { doneSignal: opts.doneSignal } : {}),
     ...(opts.allowedTools ? { allowed: opts.allowedTools } : {}),

@@ -32,9 +32,9 @@ All tools are `AgentTool` factories. The `parameters` column lists parameter nam
 
 | Name | Description | Parameters |
 |---|---|---|
-| `spawn_subagent` | Delegate a narrowly scoped task to a fresh agent with a restricted tool whitelist. | `task`, `allowed_tools?` |
+| `spawn_subagent` | Delegate a narrowly scoped task to a fresh agent with a restricted tool whitelist. Runs on `config.executionModel`. | `task`, `allowed_tools?` |
 | `delegate_to_claude_code` | Hand off a self-contained task to Claude Code via the Claude Agent SDK. | `task`, `allowed_tools?`, `cwd?`, `max_turns?`, `system_prompt?` |
-| `author_skill` | Write a new SKILL.md for a recurring procedure the agent has noticed. Includes a one-shot critique pass. | `name`, `trigger`, `procedure`, `rationale?` |
+| `author_skill` | Write a new SKILL.md for a recurring procedure the agent has noticed. Includes a one-shot critique pass. Runs on `config.executionModel`. | `name`, `trigger`, `procedure`, `rationale?` |
 | `done` | Mark the autonomous goal complete. Terminates the loop. | `summary`, `artifacts?` |
 | `propose_plan` | Plan-first mode: save a markdown plan to `~/.enter/plans/` and stop. Available only when the autonomous loop is active (`--autonomous` / `--plan`). | `goal`, `steps`, `critical_files?`, `verification?` |
 

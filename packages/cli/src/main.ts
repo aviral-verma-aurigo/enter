@@ -83,12 +83,22 @@ export async function main(argv: string[]): Promise<void> {
   const cliOverrides = {
     ...(args.provider ? { provider: args.provider } : {}),
     ...(args.model ? { model: args.model } : {}),
+    ...(args.executionModel ? { executionModel: args.executionModel } : {}),
     ...(args.maxTurns !== undefined ? { maxTurns: args.maxTurns } : {}),
   };
   const config = loadConfig(paths, cliOverrides);
   const apiKey = resolveApiKey(config.provider, paths);
-  const model = resolveModel(config.provider, config.model);
-  logger.debug("Resolved model", { provider: config.provider, model: config.model });
+  const executionModel = resolveModel(config.provider, config.executionModel);
+  // Executing a reviewed plan is an execution task — the main agent runs on the
+  // execution model there; everywhere else it runs on the thinking/planning model.
+  const model = args.executePlan
+    ? executionModel
+    : resolveModel(config.provider, config.model);
+  logger.debug("Resolved models", {
+    provider: config.provider,
+    model: model.id,
+    executionModel: executionModel.id,
+  });
 
   const memory = MemoryStore.open(paths.memoryDbFile);
   const graph = GraphStore.attach(memory);
@@ -185,6 +195,7 @@ export async function main(argv: string[]): Promise<void> {
     ctx,
     paths,
     model,
+    executionModel,
     apiKey,
     thinkingLevel: config.thinkingLevel,
     thinkingBudgets: config.thinkingBudgets,
@@ -239,7 +250,7 @@ export async function main(argv: string[]): Promise<void> {
           await runTuiMode({
             agent,
             slashContext,
-            modelLabel: `${config.provider}/${config.model}`,
+            modelLabel: `${config.provider}/${model.id} (exec: ${executionModel.id})`,
             cwd,
             version: PKG_VERSION,
           });

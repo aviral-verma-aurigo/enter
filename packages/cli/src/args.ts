@@ -8,6 +8,7 @@ export interface CliArgs {
   /** Execute a previously proposed plan from `~/.enter/plans/<name>.md`. */
   executePlan?: string;
   model?: string;
+  executionModel?: string;
   provider?: string;
   soul?: string;
   session?: string;
@@ -66,6 +67,9 @@ export function parseArgs(argv: string[]): CliArgs {
       case "--model":
         out.model = argv[++i];
         break;
+      case "--execution-model":
+        out.executionModel = argv[++i];
+        break;
       case "--provider":
         out.provider = argv[++i];
         break;
@@ -113,7 +117,8 @@ FLAGS
   --autonomous <goal>   run autonomous loop until done/max-turns
   --plan <goal>         plan-first mode: investigate read-only, propose a plan, exit
   --execute-plan <path> execute a plan saved earlier under ~/.enter/plans/
-  --model <id>          provider-specific model id
+  --model <id>          model for thinking/planning (the main agent)
+  --execution-model <id> model for execution: subagents, skill authoring, --execute-plan
   --provider <name>     provider (e.g. anthropic, openai)
   --soul <path>         override SOUL.md path
   --session <id>        resume session by id
@@ -124,7 +129,8 @@ FLAGS
 ENV
   ANTHROPIC_API_KEY     required for default provider
   ENTER_HOME            override ~/.enter
-  ENTER_MODEL           default model id
+  ENTER_MODEL           default main (thinking/planning) model id
+  ENTER_EXECUTION_MODEL default execution model id (subagents, --execute-plan)
   ENTER_PROVIDER        default provider
   ENTER_LOG             debug|info|warn|error (default info)
 `;

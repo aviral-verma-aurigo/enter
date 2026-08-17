@@ -26,7 +26,8 @@ describe("loadConfig precedence", () => {
     const paths = resolvePaths({ homeOverride: tmpHome });
     const cfg = loadConfig(paths);
     expect(cfg.provider).toBe("anthropic");
-    expect(cfg.model).toBe("claude-opus-4-7");
+    expect(cfg.model).toBe("claude-fable-5");
+    expect(cfg.executionModel).toBe("claude-sonnet-5");
     expect(cfg.autonomy.maxTurns).toBe(50);
   });
 
@@ -66,6 +67,31 @@ describe("loadConfig precedence", () => {
     const cfg = loadConfig(paths, { model: "claude-sonnet-4-6", maxTurns: 7 });
     expect(cfg.model).toBe("claude-sonnet-4-6");
     expect(cfg.autonomy.maxTurns).toBe(7);
+  });
+
+  it("executionModel: config.json overrides default, env overrides config, CLI wins", () => {
+    const paths = resolvePaths({ homeOverride: tmpHome });
+    fs.mkdirSync(tmpHome, { recursive: true });
+    fs.writeFileSync(
+      paths.configFile,
+      JSON.stringify({ executionModel: "claude-haiku-4-5" }),
+      "utf8",
+    );
+    expect(loadConfig(paths).executionModel).toBe("claude-haiku-4-5");
+
+    process.env["ENTER_EXECUTION_MODEL"] = "claude-sonnet-4-6";
+    expect(loadConfig(paths).executionModel).toBe("claude-sonnet-4-6");
+
+    expect(loadConfig(paths, { executionModel: "claude-sonnet-5" }).executionModel).toBe(
+      "claude-sonnet-5",
+    );
+  });
+
+  it("executionModel is independent of the main model override", () => {
+    const paths = resolvePaths({ homeOverride: tmpHome });
+    const cfg = loadConfig(paths, { model: "claude-opus-4-7" });
+    expect(cfg.model).toBe("claude-opus-4-7");
+    expect(cfg.executionModel).toBe("claude-sonnet-5"); // default untouched
   });
 
   it("deep-merges nested config blocks (config.json sets thinkingBudgets.medium, defaults keep low/high)", () => {

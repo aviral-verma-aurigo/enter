@@ -27,6 +27,8 @@ export * from "./context.js";
 export interface BuildToolsOptions {
   ctx: ToolContext;
   model: Model<any>;
+  /** Model for execution surfaces (subagents, skill authoring). Defaults to `model`. */
+  executionModel?: Model<any>;
   apiKey: string;
   /** When set, include the `done` tool wired to this signal (autonomous mode). */
   doneSignal?: DoneSignal;
@@ -48,6 +50,7 @@ export interface BuildToolsOptions {
  */
 export function registerBuiltinTools(options: BuildToolsOptions): AgentTool[] {
   const { ctx, model, apiKey } = options;
+  const executionModel = options.executionModel ?? model;
 
   // We need a self-reference for spawn_subagent's parent tool catalog.
   // Build the list first, then patch in the spawn tool which closes over `tools`.
@@ -67,14 +70,14 @@ export function registerBuiltinTools(options: BuildToolsOptions): AgentTool[] {
     grepTool(ctx),
     webFetchTool(ctx),
     delegateClaudeCodeTool(ctx),
-    authorSkillTool(ctx, { model, apiKey }),
+    authorSkillTool(ctx, { model: executionModel, apiKey }),
   ];
   if (options.includeBash !== false) {
     core.push(bashTool(ctx, options.bash ?? {}));
   }
 
   const spawn = spawnSubagentTool(ctx, {
-    model,
+    model: executionModel,
     apiKey,
     getParentTools: () => tools,
   });

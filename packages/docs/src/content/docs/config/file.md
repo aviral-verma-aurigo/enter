@@ -10,7 +10,8 @@ Enter reads `~/.enter/config.json` on startup. Override the root with `ENTER_HOM
 ```ts
 interface EnterConfig {
   provider: string;          // e.g. "anthropic"
-  model: string;             // provider-specific model id
+  model: string;             // main model — thinking, planning, conversation
+  executionModel: string;    // execution model — subagents, skill authoring, --execute-plan
   thinkingLevel: "off" | "minimal" | "low" | "medium" | "high" | "xhigh";
   thinkingBudgets: { low: number; medium: number; high: number };
   autonomy: {
@@ -57,7 +58,8 @@ The schema is enforced with [Typebox](https://github.com/sinclairzx81/typebox); 
 ```json
 {
   "provider": "anthropic",
-  "model": "claude-opus-4-7",
+  "model": "claude-fable-5",
+  "executionModel": "claude-sonnet-5",
   "thinkingLevel": "medium",
   "thinkingBudgets": { "low": 1024, "medium": 4096, "high": 16384 },
   "autonomy": { "maxTurns": 50, "idleStallTurns": 2, "wallClockMinutes": 30 },
@@ -81,7 +83,8 @@ The schema is enforced with [Typebox](https://github.com/sinclairzx81/typebox); 
 
 ## What each block controls
 
-- **provider / model** — the chat model. Override per-invocation with `--provider` / `--model` or env vars `ENTER_PROVIDER` / `ENTER_MODEL`.
+- **provider / model** — the main model, used for thinking, planning, and conversation (the interactive agent, `--print`, `--plan`, and `--autonomous`). Override per-invocation with `--provider` / `--model` or env vars `ENTER_PROVIDER` / `ENTER_MODEL`.
+- **executionModel** — the model for execution work: spawned subagents, skill authoring (`author_skill`), and `--execute-plan` runs. Cheaper/faster models fit here because the task is already scoped by the main model. Override with `--execution-model` or `ENTER_EXECUTION_MODEL`. Set both keys to the same id to opt out of the split.
 - **thinkingLevel / thinkingBudgets** — extended thinking budget. `off` disables; `xhigh` is the model's maximum. Token amounts for `low/medium/high` are taken from `thinkingBudgets`.
 - **autonomy** — defaults for `runAutonomous`. CLI `--max-turns` overrides `maxTurns`.
 - **memory.nudgeEveryNTurns** — how often the `[memory-nudge]` user message is injected.

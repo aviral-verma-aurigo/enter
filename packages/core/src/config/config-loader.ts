@@ -6,6 +6,7 @@ import { ConfigError } from "../util/errors.js";
 export interface CliOverrides {
   provider?: string;
   model?: string;
+  executionModel?: string;
   maxTurns?: number;
 }
 
@@ -52,11 +53,14 @@ export function loadConfig(paths: EnterPaths, cliOverrides: CliOverrides = {}): 
 
   const envProvider = process.env["ENTER_PROVIDER"];
   const envModel = process.env["ENTER_MODEL"];
+  const envExecutionModel = process.env["ENTER_EXECUTION_MODEL"];
   if (envProvider) cfg = { ...cfg, provider: envProvider };
   if (envModel) cfg = { ...cfg, model: envModel };
+  if (envExecutionModel) cfg = { ...cfg, executionModel: envExecutionModel };
 
   if (cliOverrides.provider) cfg = { ...cfg, provider: cliOverrides.provider };
   if (cliOverrides.model) cfg = { ...cfg, model: cliOverrides.model };
+  if (cliOverrides.executionModel) cfg = { ...cfg, executionModel: cliOverrides.executionModel };
   if (cliOverrides.maxTurns !== undefined) {
     cfg = { ...cfg, autonomy: { ...cfg.autonomy, maxTurns: cliOverrides.maxTurns } };
   }
