@@ -12,6 +12,7 @@ import { renderBanner } from "../tui/banner.js";
 import { editorTheme } from "../tui/theme.js";
 import { MinimalLoader } from "../tui/minimal-loader.js";
 import { Transcript } from "../tui/transcript.js";
+import { toolPreview } from "../tui/tool-preview.js";
 import { dispatchSlash, type SlashContext } from "../slash/index.js";
 
 export interface TuiOptions {
@@ -99,15 +100,17 @@ export async function runTuiMode(opts: TuiOptions): Promise<void> {
       case "turn_end":
         writeAndRender(() => transcript.endAssistant());
         break;
-      case "tool_execution_start":
+      case "tool_execution_start": {
+        const preview = toolPreview(event.toolName, event.args);
         writeAndRender(() => {
           transcript.endAssistant();
-          transcript.pushToolStart(event.toolName);
+          transcript.pushToolStart(event.toolCallId, event.toolName, preview);
         });
-        setBusy(true, `running ${event.toolName}…`);
+        setBusy(true, preview || event.toolName);
         break;
+      }
       case "tool_execution_end":
-        writeAndRender(() => transcript.pushToolEnd(event.toolName, event.isError));
+        writeAndRender(() => transcript.pushToolEnd(event.toolCallId, event.isError));
         setBusy(true, "thinking…");
         break;
       default:

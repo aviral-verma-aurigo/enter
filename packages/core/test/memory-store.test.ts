@@ -1,3 +1,7 @@
+import fs from "node:fs";
+import os from "node:os";
+import path from "node:path";
+import Database from "better-sqlite3";
 import { describe, expect, it } from "vitest";
 import { MemoryStore } from "../src/memory/memory-store.js";
 
@@ -160,17 +164,60 @@ describe("MemoryStore", () => {
   });
 
   it("migrates a pre-user_key database additively", () => {
-    // Simulate an old DB by stripping the column the open() migration added,
-    // then re-opening the same DB and checking the migration heals it.
-    const m = open();
-    m.upsert({ type: "user", name: "pre", summary: "from before", body: "x", path: "/p" });
-    const rec = m.list({ type: "user" })[0]!;
-    expect(rec.userKey).toBeNull();
-    // Existing rows still recallable; recall returns userKey=null.
-    const hits = m.recall("before");
-    expect(hits).toHaveLength(1);
-    expect(hits[0]!.userKey).toBeNull();
-    m.close();
+    // Build a real pre-user_key fixture on disk: create the memories table
+    // without user_key, insert a row, close, then open via MemoryStore.open
+    // and verify it doesn't crash on the user_key index creation.
+    const tmp = fs.mkdtempSync(path.join(os.tmpdir(), "enter-mem-migrate-"));
+    const dbPath = path.join(tmp, "memories.db");
+    try {
+      const seed = new Database(dbPath);
+      seed.exec(`
+        CREATE TABLE memories (
+          id TEXT PRIMARY KEY,
+          type TEXT NOT NULL,
+          name TEXT NOT NULL,
+          summary TEXT NOT NULL,
+          body TEXT NOT NULL,
+          path TEXT NOT NULL,
+          project_hash TEXT,
+          channel_key TEXT,
+          tags TEXT NOT NULL DEFAULT '[]',
+          created TEXT NOT NULL,
+          updated TEXT NOT NULL,
+          hits INTEGER NOT NULL DEFAULT 0
+        );
+      `);
+      seed
+        .prepare(
+          `INSERT INTO memories (id, type, name, summary, body, path, created, updated)
+           VALUES ('OLD01', 'user', 'pre', 'from before', 'legacy body', '/p', '2024-01-01', '2024-01-01')`,
+        )
+        .run();
+      seed.close();
+
+      // The buggy ordering would throw here with "no such column: user_key".
+      const m = MemoryStore.open(dbPath);
+
+      // Column was added; existing row is preserved with userKey=null.
+      const list = m.list({ type: "user" });
+      expect(list).toHaveLength(1);
+      expect(list[0]!.userKey).toBeNull();
+      expect(list[0]!.name).toBe("pre");
+
+      // New rows scoped by userKey work alongside the migrated legacy row.
+      m.upsert({
+        type: "user",
+        name: "post",
+        summary: "after migration",
+        body: "y",
+        path: "/q",
+        userKey: "alice",
+      });
+      expect(m.list({ userKey: "alice" })).toHaveLength(1);
+      m.close();
+    } finally {
+      fs.rmSync(tmp, { recursive: true, force: true });
+    }
   });
 
   it("list orders by updated DESC", async () => {

@@ -31,6 +31,7 @@ import {
   removeSchedule,
   markRun,
   dueSchedules,
+  AuthError,
   type AdoAuthorizer,
   type ToolContext,
   type EnterPaths,
@@ -38,6 +39,7 @@ import {
 } from "@enter/core";
 import type { AgentTool } from "@earendil-works/pi-agent-core";
 import { parseArgs, helpText } from "./args.js";
+import { promptApiKey, removeApiKey, listConfiguredProviders } from "./login.js";
 import { runPrintMode } from "./modes/print.js";
 import { runInteractiveMode } from "./modes/interactive.js";
 import { runTuiMode } from "./modes/tui.js";
@@ -95,6 +97,28 @@ export async function main(argv: string[]): Promise<void> {
     return;
   }
 
+  if (args.command === "login") {
+    const cfg = loadConfig(paths, args.provider ? { provider: args.provider } : {});
+    if (!process.stdin.isTTY || !process.stdout.isTTY) {
+      throw new Error("`enter login` requires an interactive terminal. Set the env var directly in non-interactive contexts.");
+    }
+    await promptApiKey(cfg.provider, paths);
+    const providers = listConfiguredProviders(paths);
+    process.stdout.write(`Saved providers: ${providers.join(", ")}\n`);
+    return;
+  }
+
+  if (args.command === "logout") {
+    const cfg = loadConfig(paths, args.provider ? { provider: args.provider } : {});
+    const result = removeApiKey(cfg.provider, paths);
+    if (result.removed) {
+      process.stdout.write(`Removed saved key for "${cfg.provider}".\n`);
+    } else {
+      process.stdout.write(`No saved key for "${cfg.provider}" — nothing to remove.\n`);
+    }
+    return;
+  }
+
   const cliOverrides = {
     ...(args.provider ? { provider: args.provider } : {}),
     ...(args.model ? { model: args.model } : {}),
@@ -102,7 +126,17 @@ export async function main(argv: string[]): Promise<void> {
     ...(args.maxTurns !== undefined ? { maxTurns: args.maxTurns } : {}),
   };
   const config = loadConfig(paths, cliOverrides);
-  const apiKey = resolveApiKey(config.provider, paths);
+  let apiKey: string;
+  try {
+    apiKey = resolveApiKey(config.provider, paths);
+  } catch (err) {
+    if (err instanceof AuthError && process.stdin.isTTY && process.stdout.isTTY) {
+      process.stdout.write(`\nWelcome to Enter — let's get you set up.\n`);
+      apiKey = await promptApiKey(config.provider, paths);
+    } else {
+      throw err;
+    }
+  }
   const executionModel = resolveModel(config.provider, config.executionModel);
   // Executing a reviewed plan is an execution task — the main agent runs on the
   // execution model there; everywhere else it runs on the thinking/planning model.
