@@ -32,6 +32,21 @@ const RecallParams = Type.Object({
 
 type Params = Static<typeof RecallParams>;
 
+/** Hits older than this many days get an age marker so the agent re-verifies before citing. */
+export const STALE_AFTER_DAYS = 30;
+
+/**
+ * Render an age marker for a recall hit. Empty string when the memory is fresh
+ * (updated within `STALE_AFTER_DAYS`) or when the timestamp is unparsable.
+ */
+export function staleness(updatedIso: string, now: Date = new Date()): string {
+  const updated = Date.parse(updatedIso);
+  if (Number.isNaN(updated)) return "";
+  const days = Math.floor((now.getTime() - updated) / 86_400_000);
+  if (days < STALE_AFTER_DAYS) return "";
+  return ` (aged: ${days}d old — re-verify before citing)`;
+}
+
 export function recallTool(ctx: ToolContext): AgentTool<typeof RecallParams> {
   return {
     name: "recall",
@@ -59,7 +74,8 @@ export function recallTool(ctx: ToolContext): AgentTool<typeof RecallParams> {
       const lines: string[] = [];
       lines.push(`Recall — ${hits.length} hit(s) for "${params.query}":`);
       hits.forEach((h, i) => {
-        lines.push(`${i + 1}. [${h.type}] ${h.name} — ${h.summary}`);
+        const age = staleness(h.updated);
+        lines.push(`${i + 1}. [${h.type}] ${h.name}${age} — ${h.summary}`);
         if (h.snippet) lines.push(`   ${h.snippet.replace(/\s+/g, " ").trim()}`);
         lines.push(`   path: ${h.path}`);
       });

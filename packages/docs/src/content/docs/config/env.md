@@ -9,7 +9,7 @@ Variables grouped by what reads them.
 
 | Variable | Effect |
 |---|---|
-| `ANTHROPIC_API_KEY` | Required for the default `anthropic` provider. Also used by `delegate_to_claude_code` and the `author_skill` critique. |
+| `ANTHROPIC_API_KEY` | Required for the default `anthropic` provider. Also used by `delegate_to_claude_code` and the `author_skill` critique. When unset, `delegate_to_claude_code` falls back to the `anthropic` entry in `~/.enter/keys.json`. |
 
 Additional provider keys depend on which model provider you're using (e.g. `OPENAI_API_KEY` for `provider: "openai"`).
 

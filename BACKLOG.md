@@ -32,7 +32,7 @@ Feature work tracked but not in progress. Top of list = next likely pickup. When
 ## Stretch / long-tail
 
 - **Streaming trajectory broadcast** — share an in-progress session live (for RL training or pairing).
-- **Voice mode, cron-scheduled automations**.
+- **Voice mode**.
 - **Docker / SSH / Modal sandboxes for `bash`** — currently host-pinned.
 - **Subagent recursion with depth cap** — subagents can't currently spawn subagents.
 - **Memory eviction / archival policy** — `hits` column already tracked; needs a policy that retires low-hit memories.

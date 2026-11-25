@@ -32,7 +32,10 @@ const RememberParams = Type.Object({
     pattern: "^[a-z0-9][a-z0-9-]*$",
     description: "kebab-case slug, unique per (type, scope).",
   }),
-  summary: Type.String({ minLength: 1, maxLength: 280 }),
+  summary: Type.String({
+    minLength: 1,
+    description: "Short human-readable summary. Soft limit 280 chars — longer values are truncated at a word boundary.",
+  }),
   body: Type.String({ minLength: 1 }),
   tags: Type.Optional(Type.Array(Type.String())),
   entities: Type.Optional(Type.Array(EntitySchema)),
@@ -64,6 +67,21 @@ function safeKey(k: string): string {
   return k.replace(/[\\/:*?"<>|]/g, "_");
 }
 
+export const SUMMARY_MAX_CHARS = 280;
+
+/**
+ * Truncate a summary to `SUMMARY_MAX_CHARS` at a word boundary, appending an
+ * ellipsis. Rejecting long summaries outright caused repeated retry loops in
+ * live sessions; truncation keeps the write cheap and the index tidy.
+ */
+export function truncateSummary(summary: string): { value: string; truncated: boolean } {
+  if (summary.length <= SUMMARY_MAX_CHARS) return { value: summary, truncated: false };
+  const slice = summary.slice(0, SUMMARY_MAX_CHARS - 1);
+  const lastSpace = slice.lastIndexOf(" ");
+  const cut = lastSpace > SUMMARY_MAX_CHARS * 0.6 ? slice.slice(0, lastSpace) : slice;
+  return { value: `${cut.trimEnd()}…`, truncated: true };
+}
+
 export function rememberTool(ctx: ToolContext): AgentTool<typeof RememberParams> {
   return {
     name: "remember",
@@ -77,10 +95,12 @@ export function rememberTool(ctx: ToolContext): AgentTool<typeof RememberParams>
 
       const created = new Date().toISOString();
 
+      const { value: summary, truncated } = truncateSummary(params.summary);
+
       const record = ctx.memory.upsert({
         type: params.type,
         name: params.name,
-        summary: params.summary,
+        summary,
         body: params.body,
         path: filePath,
         tags: params.tags ?? [],
@@ -125,14 +145,15 @@ export function rememberTool(ctx: ToolContext): AgentTool<typeof RememberParams>
       const all = ctx.memory.list();
       writeIndex(ctx.paths.memoryIndexFile, all);
 
+      const note = truncated ? ` Summary was over ${SUMMARY_MAX_CHARS} chars and was truncated at a word boundary.` : "";
       return {
         content: [
           {
             type: "text",
-            text: `Saved ${record.type} memory '${record.name}'. ${edges.length} graph edge(s) extracted.`,
+            text: `Saved ${record.type} memory '${record.name}'. ${edges.length} graph edge(s) extracted.${note}`,
           },
         ],
-        details: { id: record.id, path: filePath, edges: edges.length, nodes: nodes.length, created },
+        details: { id: record.id, path: filePath, edges: edges.length, nodes: nodes.length, created, truncated },
       };
     },
   };

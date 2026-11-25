@@ -1,6 +1,7 @@
 import { Type, type Static } from "typebox";
 import type { AgentTool } from "@earendil-works/pi-agent-core";
 import { delegateToClaudeCode } from "../delegates/claude-code.js";
+import { resolveApiKey } from "../config/api-keys.js";
 import type { ToolContext } from "./context.js";
 
 const DelegateParams = Type.Object({
@@ -25,8 +26,16 @@ export function delegateClaudeCodeTool(ctx: ToolContext): AgentTool<typeof Deleg
       "Hand off a self-contained coding task to Claude Code via the Claude Agent SDK. Use when the task benefits from Claude Code's full toolset (Read/Edit/Write/Bash/Glob/Grep) running independently. Returns Claude Code's final summary plus a trace of tool calls and cost.",
     parameters: DelegateParams,
     execute: async (_id, params: Params) => {
+      // Resolve a fallback key from ~/.enter/keys.json when the env var is absent.
+      // resolveApiKey throws AuthError with a helpful message if neither exists.
+      let apiKey: string | undefined;
+      if (!process.env["ANTHROPIC_API_KEY"]) {
+        apiKey = resolveApiKey("anthropic", ctx.paths);
+      }
+
       const result = await delegateToClaudeCode({
         task: params.task,
+        ...(apiKey ? { apiKey } : {}),
         ...(params.allowed_tools ? { allowedTools: params.allowed_tools } : {}),
         cwd: params.cwd ?? ctx.cwd,
         ...(params.max_turns ? { maxTurns: params.max_turns } : {}),
