@@ -2,6 +2,8 @@ import readline from "node:readline";
 import type { Agent } from "@earendil-works/pi-agent-core";
 import { toolPreview } from "../tui/tool-preview.js";
 import { dispatchSlash, type SlashContext } from "../slash/index.js";
+import { MarkdownStreamer } from "../tui/markdown.js";
+import { colorEnabled } from "../tui/color.js";
 
 export interface InteractiveOptions {
   agent: Agent;
@@ -12,23 +14,37 @@ export interface InteractiveOptions {
  * Fallback interactive mode — readline-based REPL for non-TTY contexts or `--simple`.
  *
  * Streams assistant text deltas to stdout, prints `[tool] name` lines, and accepts slash commands.
+ * On a terminal, assistant text is rendered as markdown one block at a time; when stdout is
+ * piped, raw deltas are written unchanged.
  */
 export async function runInteractiveMode(opts: InteractiveOptions): Promise<void> {
   const rl = readline.createInterface({ input: process.stdin, output: process.stdout, prompt: "» " });
+
+  const streamer =
+    process.stdout.isTTY === true
+      ? new MarkdownStreamer(
+          (s) => process.stdout.write(s),
+          () => process.stdout.columns ?? 80,
+        )
+      : null;
 
   const unsubscribe = opts.agent.subscribe((event) => {
     switch (event.type) {
       case "message_update": {
         const ev = event.assistantMessageEvent;
         if (ev && (ev as { type?: string }).type === "text_delta") {
-          process.stdout.write(String((ev as { delta?: string }).delta ?? ""));
+          const delta = String((ev as { delta?: string }).delta ?? "");
+          if (streamer) streamer.push(delta);
+          else process.stdout.write(delta);
         }
         break;
       }
       case "turn_end":
-        process.stdout.write("\n");
+        if (streamer) streamer.flush();
+        else process.stdout.write("\n");
         break;
       case "tool_execution_start": {
+        streamer?.flush();
         const preview = toolPreview(event.toolName, event.args);
         const detail = preview ? `  ${preview}` : "";
         process.stdout.write(`\n[tool] ${event.toolName}${detail}\n`);
@@ -42,10 +58,7 @@ export async function runInteractiveMode(opts: InteractiveOptions): Promise<void
     }
   });
 
-  const wantColor =
-    process.stdout.isTTY === true &&
-    process.env["NO_COLOR"] === undefined &&
-    process.env["ENTER_NO_COLOR"] !== "1";
+  const wantColor = process.stdout.isTTY === true && colorEnabled();
   const truecolor =
     process.env["COLORTERM"] === "truecolor" || process.env["COLORTERM"] === "24bit";
   const wordmark = wantColor

@@ -43,6 +43,8 @@ import { promptApiKey, removeApiKey, listConfiguredProviders } from "./login.js"
 import { runPrintMode } from "./modes/print.js";
 import { runInteractiveMode } from "./modes/interactive.js";
 import { runTuiMode } from "./modes/tui.js";
+import { formatForStream } from "./tui/markdown.js";
+import { applyNoColorFlag } from "./tui/color.js";
 import type { SlashContext } from "./slash/index.js";
 
 const PKG_VERSION = "0.1.0";
@@ -69,6 +71,7 @@ function buildAutonomousGoal(args: { autonomous?: string; plan?: string; execute
 
 export async function main(argv: string[]): Promise<void> {
   const args = parseArgs(argv);
+  applyNoColorFlag(args.noColor);
 
   if (args.command === "help") {
     process.stdout.write(helpText());
@@ -278,7 +281,7 @@ export async function main(argv: string[]): Promise<void> {
         ? `\n[done] ${result.payload.summary}` +
           (result.payload.artifacts ? `\n[artifacts] ${result.payload.artifacts.join(", ")}` : "")
         : `\n[stopped: ${result.stop.reason} after ${result.stop.turns} turn(s)]`;
-      process.stdout.write(`${result.finalText.trim()}\n${tail}\n`);
+      process.stdout.write(`${formatForStream(result.finalText.trim(), process.stdout)}\n${tail}\n`);
     } else {
       const promptText =
         args.positional.length > 0 ? args.positional.join(" ") : args.print ? "" : null;

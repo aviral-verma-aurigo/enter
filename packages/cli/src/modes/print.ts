@@ -1,5 +1,6 @@
 import type { Agent } from "@earendil-works/pi-agent-core";
 import { toolPreview } from "../tui/tool-preview.js";
+import { formatForStream } from "../tui/markdown.js";
 
 export interface PrintModeOptions {
   prompt: string;
@@ -9,6 +10,7 @@ export interface PrintModeOptions {
 /**
  * Headless mode: send a single prompt, wait for the agent to settle,
  * print final assistant text to stdout, return final text length.
+ * On a terminal the text is rendered as markdown; piped output stays raw.
  */
 export async function runPrintMode(opts: PrintModeOptions): Promise<{ finalText: string; turns: number }> {
   let finalText = "";
@@ -58,7 +60,7 @@ export async function runPrintMode(opts: PrintModeOptions): Promise<{ finalText:
   }
 
   if (finalText) {
-    process.stdout.write(finalText + "\n");
+    process.stdout.write(formatForStream(finalText, process.stdout) + "\n");
   } else {
     process.stdout.write("(no assistant text produced)\n");
   }

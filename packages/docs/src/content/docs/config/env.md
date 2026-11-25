@@ -23,6 +23,7 @@ Additional provider keys depend on which model provider you're using (e.g. `OPEN
 | `ENTER_PROVIDER` | Default provider. Equivalent to `--provider`. |
 | `ENTER_LOG` | `debug` / `info` / `warn` / `error`. Default `info`. |
 | `NO_COLOR` | Standard NO_COLOR; disables ANSI in the TUI and the simple fallback. |
+| `ENTER_NO_COLOR` | Set to `1` to disable ANSI in Enter's own output only (spawned tools keep their color). `--no-color` sets this and `NO_COLOR`. |
 
 ## Teams Bot — Bot Framework
 
