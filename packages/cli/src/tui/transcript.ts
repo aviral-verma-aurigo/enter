@@ -1,10 +1,10 @@
 import { Markdown, type Component } from "@earendil-works/pi-tui";
-import { color, colorize } from "./color.js";
+import { brand, color, colorize } from "./color.js";
 import { markdownTheme } from "./markdown.js";
 
 const C_USER = colorize(color.cyan);
 const C_ASSISTANT_LABEL = colorize(color.green);
-const C_TOOL = colorize(color.magenta);
+const C_TOOL_RUNNING = colorize(brand.slate);
 const C_BOLD = colorize(color.bold);
 const C_DIM = colorize(color.dim);
 const C_GREEN = colorize(color.green);
@@ -21,6 +21,8 @@ interface Block {
   toolOk?: boolean;
   toolElapsedMs?: number;
   toolStartedAt?: number;
+  /** Indented result preview lines shown under the header once the call ends. */
+  toolResultLines?: string[];
   text: string;
   /** Lazily-built renderer for assistant blocks; caches per (text, width). */
   md?: Markdown;
@@ -77,13 +79,14 @@ export class Transcript implements Component {
     this.trim();
   }
 
-  pushToolEnd(toolCallId: string, isError: boolean): void {
+  pushToolEnd(toolCallId: string, isError: boolean, resultLines?: string[]): void {
     // Find the matching in-progress block and update it in place.
     for (let i = this.blocks.length - 1; i >= 0; i--) {
       const b = this.blocks[i];
       if (b && b.kind === "tool" && b.toolCallId === toolCallId && b.toolOk === undefined) {
         b.toolOk = !isError;
         b.toolElapsedMs = b.toolStartedAt !== undefined ? Date.now() - b.toolStartedAt : undefined;
+        if (resultLines && resultLines.length > 0) b.toolResultLines = resultLines;
         return;
       }
     }
@@ -130,7 +133,7 @@ export class Transcript implements Component {
           plain.push("");
           break;
         case "tool":
-          plain.push(renderTool(block));
+          plain.push(...renderTool(block));
           break;
         case "system":
           plain.push(C_DIM("· " + block.text));
@@ -151,21 +154,51 @@ export class Transcript implements Component {
   }
 }
 
-function renderTool(block: Block): string {
+const RESULT_ELBOW = "  ⎿ ";
+const RESULT_INDENT = "    ";
+
+/**
+ * Render a tool block, Claude Code–style:
+ *
+ *   ⏺ Bash(git status -s) · 0.3s      (⏺ slate while running, green ok, red err)
+ *     ⎿ M packages/cli/src/tui/transcript.ts
+ *       … +4 lines
+ *
+ * The header shows `Label(detail)`; result preview lines sit under a dim elbow.
+ * Diff lines (from edit/write previews) get green/red +/− coloring.
+ */
+function renderTool(block: Block): string[] {
   const name = block.toolName ?? block.text;
   const preview = block.toolPreview ?? "";
+  const header = C_BOLD(name) + (preview ? C_DIM("(" + preview + ")") : "");
 
   if (block.toolOk === undefined) {
-    // In-progress: magenta bullet + bold tool name + dim preview
-    return C_TOOL("· ") + C_BOLD(name) + (preview ? C_DIM("  " + preview) : "");
+    // In-progress: slate bullet, no result yet.
+    return [C_TOOL_RUNNING("⏺ ") + header];
   }
 
-  const detail = name + (preview ? "  " + preview : "");
+  const lines: string[] = [];
   if (block.toolOk) {
-    const timing = block.toolElapsedMs !== undefined ? "  " + fmtMs(block.toolElapsedMs) : "";
-    return C_GREEN("✓ ") + C_DIM(detail + timing);
+    const timing = block.toolElapsedMs !== undefined ? C_DIM(" · " + fmtMs(block.toolElapsedMs)) : "";
+    lines.push(C_GREEN("⏺ ") + header + timing);
+  } else {
+    lines.push(C_RED("⏺ ") + header + C_RED(" · failed"));
   }
-  return C_RED("✗ ") + C_DIM(detail);
+
+  const results = block.toolResultLines ?? [];
+  for (let i = 0; i < results.length; i++) {
+    const raw = results[i] ?? "";
+    const gutter = i === 0 ? C_DIM(RESULT_ELBOW) : RESULT_INDENT;
+    lines.push(gutter + styleResultLine(raw, block.toolOk === false));
+  }
+  return lines;
+}
+
+function styleResultLine(line: string, isError: boolean): string {
+  if (isError) return C_RED(line);
+  if (line.startsWith("+ ")) return C_GREEN(line);
+  if (line.startsWith("- ")) return C_RED(line);
+  return C_DIM(line);
 }
 
 function fmtMs(ms: number): string {

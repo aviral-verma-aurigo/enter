@@ -44,6 +44,22 @@ Assistant replies are rendered as markdown in the terminal: headings, **bold**, 
 
 When stdout is piped or redirected (`enter --print "…" > out.md`, `| less`, CI logs), the raw markdown is written unchanged so files and scripts get exactly what the model produced. With `NO_COLOR=1` or `ENTER_NO_COLOR=1`, formatting keeps its structure (bullets, wrapping, boxed tables, indented code) but emits no color escapes.
 
+## Tool activity
+
+Each tool call renders as a header line with a status bullet and a one-line argument summary, followed by a short result preview indented under an elbow:
+
+```
+⏺ Bash(git status -s) · 0.3s
+  ⎿ M packages/cli/src/tui/transcript.ts
+    ?? packages/cli/src/tui/tool-format.ts
+    … +4 lines
+```
+
+- The bullet is slate while the tool is running, green on success, and red with a `· failed` suffix on error. Successful calls show elapsed time.
+- Result previews are tool-aware: `Read` collapses to `Read N lines`, `Glob` to `N files`, `Grep` to `N matching lines`. `Edit` shows a mini diff of the replaced text (`- ` removed / `+ ` added, colored red/green), and `Write` shows the first added lines. Other tools show the first few lines of output with an `… +N lines` tail. Failed calls show the error text in red.
+- In the rich UI, the status line under the transcript also surfaces the model's live reasoning while it thinks (`✱ last thought…`) and the current tool call while one runs.
+- `--simple` prints the same headers append-only (header first, then a `⎿ ✓` / `⎿ ✗ failed` status line with the preview). `--print` writes compact `⏺ Tool(args)` / `⎿ ✓` lines to stderr so stdout stays clean for the final reply.
+
 ## Flags
 
 | Flag | Meaning |

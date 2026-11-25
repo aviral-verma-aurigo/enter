@@ -1,9 +1,9 @@
 import readline from "node:readline";
 import type { Agent } from "@earendil-works/pi-agent-core";
-import { toolPreview } from "../tui/tool-preview.js";
 import { dispatchSlash, type SlashContext } from "../slash/index.js";
 import { MarkdownStreamer } from "../tui/markdown.js";
-import { colorEnabled } from "../tui/color.js";
+import { color, colorEnabled, colorize } from "../tui/color.js";
+import { formatToolHeader, formatResultPreview } from "../tui/tool-format.js";
 
 export interface InteractiveOptions {
   agent: Agent;
@@ -13,12 +13,19 @@ export interface InteractiveOptions {
 /**
  * Fallback interactive mode — readline-based REPL for non-TTY contexts or `--simple`.
  *
- * Streams assistant text deltas to stdout, prints `[tool] name` lines, and accepts slash commands.
- * On a terminal, assistant text is rendered as markdown one block at a time; when stdout is
- * piped, raw deltas are written unchanged.
+ * Streams assistant text deltas to stdout, prints `⏺ Tool(args)` headers with `⎿ status`
+ * result lines, and accepts slash commands. On a terminal, assistant text is rendered as
+ * markdown one block at a time; when stdout is piped, raw deltas are written unchanged.
  */
+const C_BULLET = colorize(color.magenta);
+const C_BOLD = colorize(color.bold);
+const C_DIM = colorize(color.dim);
+const C_GREEN = colorize(color.green);
+const C_RED = colorize(color.red);
+
 export async function runInteractiveMode(opts: InteractiveOptions): Promise<void> {
   const rl = readline.createInterface({ input: process.stdin, output: process.stdout, prompt: "» " });
+  const pendingToolArgs = new Map<string, unknown>();
 
   const streamer =
     process.stdout.isTTY === true
@@ -45,14 +52,21 @@ export async function runInteractiveMode(opts: InteractiveOptions): Promise<void
         break;
       case "tool_execution_start": {
         streamer?.flush();
-        const preview = toolPreview(event.toolName, event.args);
-        const detail = preview ? `  ${preview}` : "";
-        process.stdout.write(`\n[tool] ${event.toolName}${detail}\n`);
+        pendingToolArgs.set(event.toolCallId, event.args);
+        const header = formatToolHeader(event.toolName, event.args);
+        process.stdout.write(`\n${C_BULLET("⏺ ")}${C_BOLD(header.label)}${header.detail ? C_DIM(`(${header.detail})`) : ""}\n`);
         break;
       }
-      case "tool_execution_end":
-        process.stdout.write(`[tool] ${event.toolName} ${event.isError ? "✗" : "✓"}\n`);
+      case "tool_execution_end": {
+        const args = pendingToolArgs.get(event.toolCallId);
+        pendingToolArgs.delete(event.toolCallId);
+        const preview = formatResultPreview(event.toolName, args, event.result, event.isError);
+        const status = event.isError ? C_RED("✗ failed") : C_GREEN("✓");
+        const first = preview[0] !== undefined ? ` ${preview[0]}` : "";
+        process.stdout.write(C_DIM("  ⎿ ") + status + C_DIM(first) + "\n");
+        for (const line of preview.slice(1)) process.stdout.write(C_DIM("    " + line) + "\n");
         break;
+      }
       default:
         break;
     }
