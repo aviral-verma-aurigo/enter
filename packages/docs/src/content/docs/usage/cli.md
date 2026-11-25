@@ -97,11 +97,13 @@ enter schedule remove team-standup-brief
 
 Cadences: `--every <minutes>` (interval) or `--at <HH:MM>` (daily, local time). A schedule's `lastRun` is only advanced when its run exits cleanly, so a failed run is retried on the next `run-due`. Each run gets a fresh session with the standard integrations and memory; per-run turn caps come from `--max-turns` at `add` time.
 
-Example crontab line:
+Example crontab line. cron runs with a minimal `PATH` (`/usr/bin:/bin`), and `enter` is a Node script, so set `PATH` to include the directory that holds `node` and use the full path to `enter` (find both with `command -v node enter`):
 
 ```text
-*/15 * * * * /usr/local/bin/enter schedule run-due >> ~/.enter/schedule.log 2>&1
+*/15 * * * * PATH=/usr/local/bin:/usr/bin:/bin /usr/local/bin/enter schedule run-due >> ~/.enter/schedule.log 2>&1
 ```
+
+cron only fires while the machine is awake; a laptop that is asleep at the scheduled time picks the schedule up on the next `run-due` after it wakes.
 
 ## Environment variables
 
