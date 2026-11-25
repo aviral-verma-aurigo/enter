@@ -12,7 +12,7 @@ import { renderBanner } from "../tui/banner.js";
 import { editorTheme } from "../tui/theme.js";
 import { MinimalLoader } from "../tui/minimal-loader.js";
 import { Transcript } from "../tui/transcript.js";
-import { toolPreview } from "../tui/tool-preview.js";
+import { formatToolHeader, formatResultPreview, headerText as toolHeaderText } from "../tui/tool-format.js";
 import { dispatchSlash, type SlashContext } from "../slash/index.js";
 
 export interface TuiOptions {
@@ -88,12 +88,24 @@ export async function runTuiMode(opts: TuiOptions): Promise<void> {
     tui.requestRender();
   };
 
+  // Pending tool args by call id — needed to build diff previews on tool end.
+  const pendingToolArgs = new Map<string, unknown>();
+  // Rolling tail of the current thinking block, surfaced in the loader.
+  let thinkingTail = "";
+
   const unsubscribe = opts.agent.subscribe((event) => {
     switch (event.type) {
       case "message_update": {
         const ev = event.assistantMessageEvent as unknown as { type?: string; delta?: string };
         if (ev?.type === "text_delta" && typeof ev.delta === "string") {
           writeAndRender(() => transcript.appendToAssistant(ev.delta as string));
+        } else if (ev?.type === "thinking_delta" && typeof ev.delta === "string") {
+          // Show the model's live reasoning tail in the loader: `✱ last thought…`
+          thinkingTail = (thinkingTail + ev.delta).slice(-400);
+          if (busy) loader.setMessage("✱ " + thinkingSnippet(thinkingTail));
+        } else if (ev?.type === "thinking_end") {
+          thinkingTail = "";
+          if (busy) loader.setMessage("thinking…");
         }
         break;
       }
@@ -101,18 +113,23 @@ export async function runTuiMode(opts: TuiOptions): Promise<void> {
         writeAndRender(() => transcript.endAssistant());
         break;
       case "tool_execution_start": {
-        const preview = toolPreview(event.toolName, event.args);
+        const header = formatToolHeader(event.toolName, event.args);
+        pendingToolArgs.set(event.toolCallId, event.args);
         writeAndRender(() => {
           transcript.endAssistant();
-          transcript.pushToolStart(event.toolCallId, event.toolName, preview);
+          transcript.pushToolStart(event.toolCallId, header.label, header.detail);
         });
-        setBusy(true, preview || event.toolName);
+        setBusy(true, toolHeaderText(header));
         break;
       }
-      case "tool_execution_end":
-        writeAndRender(() => transcript.pushToolEnd(event.toolCallId, event.isError));
+      case "tool_execution_end": {
+        const args = pendingToolArgs.get(event.toolCallId);
+        pendingToolArgs.delete(event.toolCallId);
+        const preview = formatResultPreview(event.toolName, args, event.result, event.isError);
+        writeAndRender(() => transcript.pushToolEnd(event.toolCallId, event.isError, preview));
         setBusy(true, "thinking…");
         break;
+      }
       default:
         break;
     }
@@ -218,6 +235,17 @@ export async function runTuiMode(opts: TuiOptions): Promise<void> {
 
 function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+/**
+ * Reduce a rolling thinking-text tail to a single short loader snippet:
+ * last non-empty line, whitespace collapsed, truncated to fit one line.
+ */
+function thinkingSnippet(tail: string, max = 64): string {
+  const lines = tail.split("\n").map((l) => l.trim()).filter((l) => l.length > 0);
+  const last = lines[lines.length - 1] ?? "thinking…";
+  const flat = last.replace(/\s+/g, " ");
+  return flat.length > max ? "…" + flat.slice(-max) : flat;
 }
 
 /**

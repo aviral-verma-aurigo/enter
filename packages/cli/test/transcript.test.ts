@@ -11,59 +11,64 @@ function renderStripped(t: Transcript, width = 120): string[] {
 }
 
 describe("Transcript tool blocks", () => {
-  it("pushToolStart shows tool name and preview, no status icon", () => {
+  it("pushToolStart shows ⏺ header with name and parenthesized detail", () => {
     const t = new Transcript();
-    t.pushToolStart("id1", "bash", "git status -s");
+    t.pushToolStart("id1", "Bash", "git status -s");
     const lines = renderStripped(t);
     expect(lines.length).toBe(1);
-    expect(lines[0]).toContain("bash");
-    expect(lines[0]).toContain("git status -s");
-    expect(lines[0]).not.toContain("✓");
-    expect(lines[0]).not.toContain("✗");
+    expect(lines[0]).toBe("⏺ Bash(git status -s)");
   });
 
-  it("pushToolEnd(ok) mutates the block to show ✓ and timing", () => {
+  it("pushToolEnd(ok) keeps the header and appends timing", () => {
     const t = new Transcript();
-    t.pushToolStart("id1", "bash", "git status -s");
+    t.pushToolStart("id1", "Bash", "git status -s");
     t.pushToolEnd("id1", false);
     const lines = renderStripped(t);
     expect(lines.length).toBe(1);
-    expect(lines[0]).toContain("✓");
-    expect(lines[0]).toContain("bash");
-    expect(lines[0]).toContain("git status -s");
+    expect(lines[0]).toContain("⏺ Bash(git status -s)");
     // timing: ends in "ms" or "s"
-    expect(lines[0]).toMatch(/\d+(ms|s)/);
+    expect(lines[0]).toMatch(/· \d+(\.\d+)?(ms|s)$/);
   });
 
-  it("pushToolEnd(error) mutates the block to show ✗", () => {
+  it("pushToolEnd(error) marks the header as failed", () => {
     const t = new Transcript();
-    t.pushToolStart("id1", "bash", "npm install");
+    t.pushToolStart("id1", "Bash", "npm install");
     t.pushToolEnd("id1", true);
     const lines = renderStripped(t);
     expect(lines.length).toBe(1);
-    expect(lines[0]).toContain("✗");
-    expect(lines[0]).not.toContain("✓");
+    expect(lines[0]).toContain("· failed");
   });
 
-  it("collapses to one line per tool call (not two)", () => {
+  it("renders result preview lines under a ⎿ elbow", () => {
     const t = new Transcript();
-    t.pushToolStart("id1", "read", "src/main.ts");
+    t.pushToolStart("id1", "Bash", "git status -s");
+    t.pushToolEnd("id1", false, ["M a.ts", "?? b.ts", "… +3 lines"]);
+    const lines = renderStripped(t);
+    expect(lines.length).toBe(4);
+    expect(lines[1]).toBe("  ⎿ M a.ts");
+    expect(lines[2]).toBe("    ?? b.ts");
+    expect(lines[3]).toBe("    … +3 lines");
+  });
+
+  it("collapses to one line per tool call when there is no result preview", () => {
+    const t = new Transcript();
+    t.pushToolStart("id1", "Read", "src/main.ts");
     t.pushToolEnd("id1", false);
     expect(renderStripped(t).length).toBe(1);
   });
 
   it("handles parallel tool calls independently by toolCallId", () => {
     const t = new Transcript();
-    t.pushToolStart("id-a", "read", "a.ts");
-    t.pushToolStart("id-b", "read", "b.ts");
+    t.pushToolStart("id-a", "Read", "a.ts");
+    t.pushToolStart("id-b", "Read", "b.ts");
     t.pushToolEnd("id-b", false);
     t.pushToolEnd("id-a", true);
     const lines = renderStripped(t);
     expect(lines.length).toBe(2);
     const aLine = lines.find((l) => l.includes("a.ts"))!;
     const bLine = lines.find((l) => l.includes("b.ts"))!;
-    expect(aLine).toContain("✗"); // id-a errored
-    expect(bLine).toContain("✓"); // id-b ok
+    expect(aLine).toContain("· failed"); // id-a errored
+    expect(bLine).not.toContain("· failed"); // id-b ok
   });
 
   it("unknown toolCallId on pushToolEnd falls back to a new block without crashing", () => {
@@ -73,12 +78,13 @@ describe("Transcript tool blocks", () => {
     expect(lines.length).toBe(1);
   });
 
-  it("renders tool name even with no preview", () => {
+  it("renders tool name without parens when there is no detail", () => {
     const t = new Transcript();
-    t.pushToolStart("id1", "someNewTool", "");
+    t.pushToolStart("id1", "SomeNewTool", "");
     t.pushToolEnd("id1", false);
     const lines = renderStripped(t);
-    expect(lines[0]).toContain("someNewTool");
+    expect(lines[0]).toContain("SomeNewTool");
+    expect(lines[0]).not.toContain("(");
   });
 });
 
@@ -96,8 +102,8 @@ describe("Transcript NO_COLOR", () => {
     // Note: colorize() checks NO_COLOR at module load time, so this test verifies the
     // strip utility works — the actual NO_COLOR behavior is covered by the color module itself.
     const t = new Transcript();
-    t.pushToolStart("id1", "bash", "echo hi");
-    t.pushToolEnd("id1", false);
+    t.pushToolStart("id1", "Bash", "echo hi");
+    t.pushToolEnd("id1", false, ["hi"]);
     // Verify strip removes ANSI codes from any rendered output.
     const raw = t.render(120);
     const stripped = raw.map(strip);
