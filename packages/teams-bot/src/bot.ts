@@ -129,6 +129,7 @@ export class EnterBot extends ActivityHandler {
     const config = loadConfig(paths);
     const apiKey = resolveApiKey(config.provider, paths);
     const model = resolveModel(config.provider, config.model);
+    const executionModel = resolveModel(config.provider, config.executionModel);
 
     const memory = MemoryStore.open(paths.memoryDbFile);
     const graph = GraphStore.attach(memory);
@@ -185,6 +186,7 @@ export class EnterBot extends ActivityHandler {
       ctx,
       paths,
       model,
+      executionModel,
       apiKey,
       thinkingLevel: config.thinkingLevel,
       thinkingBudgets: config.thinkingBudgets,

@@ -62,7 +62,7 @@ Behavior:
 4. Otherwise the polished body is written to `~/.enter/skills/<name>/SKILL.md`.
 
 :::note
-The critique runs against the configured chat model and uses `ANTHROPIC_API_KEY`. It's a deliberate guardrail — `author_skill` is durable state, so a one-shot review pays for itself.
+The critique runs against the configured execution model (`config.executionModel`) and uses `ANTHROPIC_API_KEY`. It's a deliberate guardrail — `author_skill` is durable state, so a one-shot review pays for itself.
 :::
 
 See [Skills Authoring](/config/skills/) for the hand-written workflow.

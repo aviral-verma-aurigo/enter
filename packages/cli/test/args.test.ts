@@ -61,6 +61,11 @@ describe("parseArgs", () => {
     expect(a.provider).toBe("anthropic");
   });
 
+  it("parses --execution-model", () => {
+    const a = parseArgs(["--execution-model", "claude-sonnet-5"]);
+    expect(a.executionModel).toBe("claude-sonnet-5");
+  });
+
   it("parses --max-turns as number", () => {
     expect(parseArgs(["--max-turns", "7"]).maxTurns).toBe(7);
   });
@@ -103,6 +108,7 @@ describe("helpText", () => {
     expect(t).toContain("--print");
     expect(t).toContain("--autonomous");
     expect(t).toContain("--model");
+    expect(t).toContain("--execution-model");
     expect(t).toContain("--provider");
     expect(t).toContain("--soul");
     expect(t).toContain("--session");

@@ -18,7 +18,8 @@ Additional provider keys depend on which model provider you're using (e.g. `OPEN
 | Variable | Effect |
 |---|---|
 | `ENTER_HOME` | Override `~/.enter` (state root). |
-| `ENTER_MODEL` | Default model id. Equivalent to `--model`. |
+| `ENTER_MODEL` | Default main (thinking/planning) model id. Equivalent to `--model`. |
+| `ENTER_EXECUTION_MODEL` | Default execution model id (subagents, skill authoring, `--execute-plan`). Equivalent to `--execution-model`. |
 | `ENTER_PROVIDER` | Default provider. Equivalent to `--provider`. |
 | `ENTER_LOG` | `debug` / `info` / `warn` / `error`. Default `info`. |
 | `NO_COLOR` | Standard NO_COLOR; disables ANSI in the TUI and the simple fallback. |
