@@ -10,6 +10,11 @@ export interface DelegateClaudeCodeOptions {
   permissionMode?: Options["permissionMode"];
   /** Streaming callback for live UI rendering (TUI or Adaptive Card). */
   onEvent?: (event: ClaudeDelegateEvent) => void;
+  /**
+   * Fallback Anthropic API key (e.g. resolved from `~/.enter/keys.json`).
+   * Used only when `ANTHROPIC_API_KEY` is not already in the process env.
+   */
+  apiKey?: string;
 }
 
 export type ClaudeDelegateEvent =
@@ -41,9 +46,16 @@ export async function delegateToClaudeCode(
   opts: DelegateClaudeCodeOptions,
 ): Promise<DelegateClaudeCodeResult> {
   if (!process.env["ANTHROPIC_API_KEY"]) {
-    throw new DelegateError(
-      "ANTHROPIC_API_KEY is not set. The Claude Agent SDK requires an Anthropic API key.",
-    );
+    if (opts.apiKey) {
+      // The Claude Agent SDK reads the key from the process env of the subprocess
+      // it spawns, which inherits ours — so setting it here is sufficient.
+      process.env["ANTHROPIC_API_KEY"] = opts.apiKey;
+    } else {
+      throw new DelegateError(
+        "ANTHROPIC_API_KEY is not set and no fallback key is configured. " +
+          "Set the env var or add an 'anthropic' key to ~/.enter/keys.json.",
+      );
+    }
   }
 
   const sdkOptions: Options = {

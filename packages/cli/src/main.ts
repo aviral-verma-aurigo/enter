@@ -1,6 +1,7 @@
 import crypto from "node:crypto";
 import fs from "node:fs";
 import os from "node:os";
+import { spawnSync } from "node:child_process";
 import {
   resolvePaths,
   ensureDirs,
@@ -23,8 +24,17 @@ import {
   AhaApiKeyAuth,
   buildAhaTools,
   McpClientManager,
+  schedulesFilePath,
+  loadSchedules,
+  saveSchedules,
+  addSchedule,
+  removeSchedule,
+  markRun,
+  dueSchedules,
   type AdoAuthorizer,
   type ToolContext,
+  type EnterPaths,
+  type Schedule,
 } from "@enter/core";
 import type { AgentTool } from "@earendil-works/pi-agent-core";
 import { parseArgs, helpText } from "./args.js";
@@ -77,6 +87,11 @@ export async function main(argv: string[]): Promise<void> {
     const repo = new JsonlSessionRepo(paths.sessionsDir);
     const result = exportSession(repo, args.exportSessionId, paths.exportsDir);
     process.stdout.write(`Exported:\n  ${result.markdownPath}\n  ${result.jsonlPath}\n`);
+    return;
+  }
+
+  if (args.command === "schedule") {
+    await handleScheduleCommand(args, paths);
     return;
   }
 
@@ -255,4 +270,92 @@ export async function main(argv: string[]): Promise<void> {
     memory.close();
     process.stdout.write(`\n[session ${sessionMeta.sessionId}]\n`);
   }
+}
+
+/**
+ * `enter schedule <add|list|remove|run-due>`.
+ *
+ * `run-due` executes each due schedule by spawning `enter --autonomous "<goal>"`
+ * as a child process — one clean session per schedule, reusing the full agent
+ * path (config, integrations, memory) without a long-lived daemon. Point cron /
+ * launchd / Task Scheduler at `enter schedule run-due` to own the clock.
+ */
+async function handleScheduleCommand(
+  args: ReturnType<typeof parseArgs>,
+  paths: EnterPaths,
+): Promise<void> {
+  const filePath = schedulesFilePath(paths.home);
+  const action = args.scheduleAction;
+
+  if (action === "list") {
+    const file = loadSchedules(filePath);
+    if (file.schedules.length === 0) {
+      process.stdout.write("No schedules. Add one: enter schedule add <name> \"<goal>\" --every 60\n");
+      return;
+    }
+    for (const s of file.schedules) {
+      const cadence = s.cadence.kind === "interval" ? `every ${s.cadence.everyMinutes}m` : `daily at ${s.cadence.at}`;
+      const last = s.lastRun ?? "never";
+      process.stdout.write(`${s.enabled ? "●" : "○"} ${s.name} — ${cadence} — last run: ${last}\n    goal: ${s.goal}\n`);
+    }
+    return;
+  }
+
+  if (action === "add") {
+    const [name, goal] = args.positional;
+    if (!name || !goal) throw new Error('Usage: enter schedule add <name> "<goal>" (--every <minutes> | --at <HH:MM>)');
+    if (args.everyMinutes === undefined && !args.dailyAt) {
+      throw new Error("Specify a cadence: --every <minutes> or --at <HH:MM>");
+    }
+    const schedule: Schedule = {
+      name,
+      goal,
+      cadence: args.dailyAt
+        ? { kind: "daily", at: args.dailyAt }
+        : { kind: "interval", everyMinutes: args.everyMinutes! },
+      enabled: true,
+      lastRun: null,
+      ...(args.maxTurns !== undefined ? { maxTurns: args.maxTurns } : {}),
+    };
+    const file = addSchedule(loadSchedules(filePath), schedule);
+    saveSchedules(filePath, file);
+    process.stdout.write(`Added schedule '${name}'. Run due schedules with: enter schedule run-due\n`);
+    return;
+  }
+
+  if (action === "remove") {
+    const [name] = args.positional;
+    if (!name) throw new Error("Usage: enter schedule remove <name>");
+    saveSchedules(filePath, removeSchedule(loadSchedules(filePath), name));
+    process.stdout.write(`Removed schedule '${name}'.\n`);
+    return;
+  }
+
+  if (action === "run-due") {
+    let file = loadSchedules(filePath);
+    const due = dueSchedules(file);
+    if (due.length === 0) {
+      process.stdout.write("No schedules due.\n");
+      return;
+    }
+    for (const s of due) {
+      process.stdout.write(`[schedule:${s.name}] running…\n`);
+      const cliArgs = ["--autonomous", s.goal, "--simple"];
+      if (s.maxTurns !== undefined) cliArgs.push("--max-turns", String(s.maxTurns));
+      const res = spawnSync(process.execPath, [process.argv[1]!, ...cliArgs], {
+        stdio: "inherit",
+        env: process.env,
+      });
+      if (res.status === 0) {
+        file = markRun(file, s.name);
+        saveSchedules(filePath, file);
+        process.stdout.write(`[schedule:${s.name}] done.\n`);
+      } else {
+        process.stdout.write(`[schedule:${s.name}] FAILED (exit ${res.status ?? "?"}) — lastRun not updated.\n`);
+      }
+    }
+    return;
+  }
+
+  throw new Error(`Unknown schedule action '${action ?? ""}'. Use add | list | remove | run-due.`);
 }

@@ -14,6 +14,10 @@ enter --autonomous "<goal>" [--max-turns N]
 enter --plan "<goal>"
 enter --execute-plan <path-to-saved-plan>
 enter export <session-id>
+enter schedule add <name> "<goal>" (--every <minutes> | --at <HH:MM>) [--max-turns N]
+enter schedule list
+enter schedule remove <name>
+enter schedule run-due
 enter version
 enter help
 ```
@@ -49,8 +53,32 @@ Terminals narrower than 47 columns collapse the banner to a single compact heade
 ## Subcommands
 
 - `enter export <session-id>` — dumps the session as markdown + JSONL to `~/.enter/exports/`. Equivalent to running `/export` inside a live session.
+- `enter schedule <add|list|remove|run-due>` — manage scheduled autonomous goals (see below).
 - `enter version` — prints the CLI version.
 - `enter help` — prints the help block.
+
+## Scheduled autonomous goals
+
+`enter schedule` stores recurring autonomous goals in `~/.enter/schedules.json`. There is no daemon: point your OS scheduler (cron, launchd, Task Scheduler) at `enter schedule run-due`, which runs every due schedule as its own autonomous session and exits.
+
+```sh
+# Every weekday at 09:00, snapshot the team's board and update memory.
+enter schedule add team-standup-brief \
+  "Pull active ADO work items for the Plan 2.0 team, compare against memory, and remember what changed" \
+  --at 09:00 --max-turns 20
+
+enter schedule list
+enter schedule run-due         # run everything currently due
+enter schedule remove team-standup-brief
+```
+
+Cadences: `--every <minutes>` (interval) or `--at <HH:MM>` (daily, local time). A schedule's `lastRun` is only advanced when its run exits cleanly, so a failed run is retried on the next `run-due`. Each run gets a fresh session with the standard integrations and memory; per-run turn caps come from `--max-turns` at `add` time.
+
+Example crontab line:
+
+```text
+*/15 * * * * /usr/local/bin/enter schedule run-due >> ~/.enter/schedule.log 2>&1
+```
 
 ## Environment variables
 

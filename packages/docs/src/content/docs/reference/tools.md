@@ -9,8 +9,8 @@ All tools are `AgentTool` factories. The `parameters` column lists parameter nam
 
 | Name | Description | Parameters |
 |---|---|---|
-| `recall` | Search the agent's long-term memory (FTS5 over markdown notes). | `query`, `k?`, `type?`, `scope?` |
-| `remember` | Save a memory the agent should keep across sessions. Auto-extracts graph edges from frontmatter, @mentions, and code paths. | `type`, `name`, `summary`, `body`, `tags?`, `entities?`, `links?` |
+| `recall` | Search the agent's long-term memory (FTS5 over markdown notes). Hits not updated in 30+ days carry an `(aged: Nd old — re-verify before citing)` marker. | `query`, `k?`, `type?`, `scope?` |
+| `remember` | Save a memory the agent should keep across sessions. Auto-extracts graph edges from frontmatter, @mentions, and code paths. Summaries over 280 chars are truncated at a word boundary (noted in the result) rather than rejected. | `type`, `name`, `summary`, `body`, `tags?`, `entities?`, `links?` |
 | `link` | Create a typed edge between two entities in the memory graph. | `src`, `type`, `dst`, `attrs?` |
 | `neighbors` | Traverse the entity graph k hops out from a node, optionally filtered to one edge type. | `entity`, `edge_type?`, `k_hops?`, `limit?` |
 | `path` | Find the shortest connection between two entities. | `from`, `to`, `max_hops?` |

@@ -267,7 +267,7 @@ export class MemoryStore {
     }
 
     const sql = `
-      SELECT m.id, m.type, m.name, m.summary, m.path, m.channel_key, m.project_hash, m.user_key,
+      SELECT m.id, m.type, m.name, m.summary, m.path, m.channel_key, m.project_hash, m.user_key, m.updated,
              snippet(memories_fts, 2, '<<', '>>', '…', 12) AS snippet
       FROM memories m
       JOIN memories_fts ON memories_fts.rowid = m.rowid
@@ -293,6 +293,7 @@ export class MemoryStore {
         channelKey: (row["channel_key"] as string | null) ?? null,
         projectHash: (row["project_hash"] as string | null) ?? null,
         userKey: (row["user_key"] as string | null) ?? null,
+        updated: String(row["updated"] ?? ""),
       };
     });
 

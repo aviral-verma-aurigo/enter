@@ -32,6 +32,8 @@ export interface RecallHit {
   channelKey: string | null;
   projectHash: string | null;
   userKey: string | null;
+  /** ISO timestamp of the memory's last write — lets callers flag stale hits. */
+  updated: string;
 }
 
 /**

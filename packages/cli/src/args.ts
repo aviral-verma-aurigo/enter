@@ -1,6 +1,12 @@
 export interface CliArgs {
-  command: "run" | "export" | "version" | "help";
+  command: "run" | "export" | "version" | "help" | "schedule";
   positional: string[];
+  /** Subcommand for `enter schedule`: add | list | remove | run-due. */
+  scheduleAction?: string;
+  /** --every <minutes> for `schedule add`. */
+  everyMinutes?: number;
+  /** --at <HH:MM> for `schedule add`. */
+  dailyAt?: string;
   print: boolean;
   autonomous?: string;
   /** Propose a plan and exit (interactive plan-first mode). */
@@ -36,6 +42,31 @@ export function parseArgs(argv: string[]): CliArgs {
   if (argv[0] === "export") {
     out.command = "export";
     if (argv[1]) out.exportSessionId = argv[1];
+    return out;
+  }
+  if (argv[0] === "schedule") {
+    out.command = "schedule";
+    out.scheduleAction = argv[1];
+    for (let i = 2; i < argv.length; i++) {
+      const a = argv[i]!;
+      if (a === "--every") {
+        const v = argv[++i];
+        if (!v) throw new Error("--every requires minutes");
+        out.everyMinutes = Number.parseInt(v, 10);
+      } else if (a === "--at") {
+        const v = argv[++i];
+        if (!v) throw new Error("--at requires HH:MM");
+        out.dailyAt = v;
+      } else if (a === "--max-turns") {
+        const v = argv[++i];
+        if (!v) throw new Error("--max-turns requires a number");
+        out.maxTurns = Number.parseInt(v, 10);
+      } else if (a.startsWith("--")) {
+        throw new Error(`Unknown schedule flag: ${a}`);
+      } else {
+        out.positional.push(a);
+      }
+    }
     return out;
   }
   for (let i = 0; i < argv.length; i++) {
@@ -105,6 +136,10 @@ USAGE
   enter --plan "<goal>"               propose a plan, don't execute
   enter --execute-plan <plan-path>    execute a previously proposed plan
   enter export <session-id>
+  enter schedule add <name> "<goal>" (--every <minutes> | --at <HH:MM>) [--max-turns N]
+  enter schedule list
+  enter schedule remove <name>
+  enter schedule run-due               run all due schedules, then exit (cron-friendly)
   enter version
   enter help
 

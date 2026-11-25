@@ -22,6 +22,8 @@ export * from "./autonomous/auto-loop.js";
 export * from "./autonomous/done-signal.js";
 export * from "./autonomous/stop-conditions.js";
 
+export * from "./schedules/schedule-store.js";
+
 export * from "./subagent/spawn.js";
 
 export * from "./delegates/claude-code.js";
