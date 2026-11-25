@@ -15,6 +15,17 @@ Feature work tracked but not in progress. Top of list = next likely pickup. When
 - **Bot render pipeline / Adaptive Cards** *(was task #23)*
   Replace plain-text bot replies with Adaptive Cards for tool-call status, diffs, PR links. Stream a single Adaptive Card per turn via `context.updateActivity` with debounce 250-500 ms. Card schemas under `packages/teams-bot/src/render/adaptive-cards/`. Effort: ~1 day.
 
+## Surfaces beyond Teams + CLI *(discussed 2026-11-25)*
+
+- **Enter as an MCP server**
+  Expose Enter's org memory (memories + graph) and its configured integrations (ADO, Confluence, Aha!, GitHub) as an MCP server, so engineers can query Enter's shared context from the coding tools they already use ("why was this built this way?", "context for this PBI"). Read-mostly to start; writes still go through the bot's PR flow. Needs service-account auth plus per-requester access filtering (restricted-at-source content stays hidden), the same secret filter as memory writes, and per-user rate limits. Highest leverage of the two: spreads Enter's core asset without a new app.
+
+- **Web console**
+  Small web UI for what Teams handles poorly: review a plan or diff before Enter opens a PR, browse and correct memory, see the audit log, per-channel token budgets and usage/pilot metrics. Linked from Teams replies (pairs with the Adaptive Cards item under UX polish). Also gives admins and security the visibility they'll ask for in production.
+
+- **Standalone desktop/coding app — deferred, not planned**
+  Decided against for now: it reintroduces per-person install and setup (the adoption problem Enter is pitched against), competes with personal coding agents Enter already delegates to, and doesn't reach non-engineering roles. Revisit only if the pilot shows long build sessions outgrowing Teams *and* the web console isn't enough. Even then, prefer a web app linked from Teams over a desktop client.
+
 ## Capability expansion
 
 - **Per-channel MCP opt-in**

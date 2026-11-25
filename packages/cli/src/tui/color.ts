@@ -14,6 +14,7 @@ export const color = {
   bold: wrap(1, 22),
   italic: wrap(3, 23),
   underline: wrap(4, 24),
+  strikethrough: wrap(9, 29),
 
   red: wrap(31, 39),
   green: wrap(32, 39),
@@ -28,10 +29,28 @@ export const color = {
   bgCyan: wrap(46, 49),
 };
 
-export const NO_COLOR = process.env["NO_COLOR"] !== undefined || process.env["ENTER_NO_COLOR"] === "1";
+/**
+ * Whether ANSI styling is on. Read on every call (not cached at import) so
+ * `--no-color`, which is parsed after modules load, still takes effect for
+ * styles built at module scope.
+ */
+export function colorEnabled(): boolean {
+  return process.env["NO_COLOR"] === undefined && process.env["ENTER_NO_COLOR"] !== "1";
+}
+
+/**
+ * Apply the `--no-color` flag. Sets `ENTER_NO_COLOR` for Enter's own output
+ * and the standard `NO_COLOR` so tools Enter spawns (git, delegates, MCP
+ * servers) also drop color.
+ */
+export function applyNoColorFlag(noColor: boolean): void {
+  if (!noColor) return;
+  process.env["ENTER_NO_COLOR"] = "1";
+  process.env["NO_COLOR"] ??= "1";
+}
 
 export function colorize(fn: (s: string) => string): (s: string) => string {
-  return NO_COLOR ? (s) => s : fn;
+  return (s) => (colorEnabled() ? fn(s) : s);
 }
 
 const TRUECOLOR =

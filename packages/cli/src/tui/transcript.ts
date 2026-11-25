@@ -1,5 +1,6 @@
-import type { Component } from "@earendil-works/pi-tui";
+import { Markdown, type Component } from "@earendil-works/pi-tui";
 import { color, colorize } from "./color.js";
+import { markdownTheme } from "./markdown.js";
 
 const C_USER = colorize(color.cyan);
 const C_ASSISTANT_LABEL = colorize(color.green);
@@ -12,11 +13,18 @@ interface Block {
   toolName?: string;
   toolOk?: boolean;
   text: string;
+  /** Lazily-built renderer for assistant blocks; caches per (text, width). */
+  md?: Markdown;
+  mdText?: string;
 }
+
+const ASSISTANT_PREFIX = "◆ ";
+const ASSISTANT_INDENT = "  ";
 
 /**
  * Scrolling conversation view. Appends blocks; renders them word-wrapped to the
- * current width with subtle ANSI coloring per block kind.
+ * current width with subtle ANSI coloring per block kind. Assistant blocks are
+ * rendered as markdown (headings, emphasis, lists, code, tables, quotes).
  *
  * Designed so the active assistant block can be streamed token-by-token via
  * `appendToAssistant()` without re-pushing blocks.
@@ -83,28 +91,36 @@ export class Transcript implements Component {
 
   render(width: number): string[] {
     const out: string[] = [];
+    const flushPlain = (lines: string[]) => {
+      out.push(...wrapLines(lines, width));
+      lines.length = 0;
+    };
+    const plain: string[] = [];
     for (const block of this.blocks) {
+      if (block.kind === "assistant") {
+        flushPlain(plain);
+        out.push(...renderAssistant(block, width));
+        out.push("");
+        continue;
+      }
       switch (block.kind) {
         case "user":
-          out.push(C_USER("» ") + block.text);
-          out.push("");
-          break;
-        case "assistant":
-          out.push(C_ASSISTANT_LABEL("◆ ") + block.text);
-          out.push("");
+          plain.push(C_USER("» ") + block.text);
+          plain.push("");
           break;
         case "tool":
-          out.push(C_TOOL("· ") + C_DIM(block.text));
+          plain.push(C_TOOL("· ") + C_DIM(block.text));
           break;
         case "system":
-          out.push(C_DIM("· " + block.text));
+          plain.push(C_DIM("· " + block.text));
           break;
         case "error":
-          out.push(C_ERROR("✗ " + block.text));
+          plain.push(C_ERROR("✗ " + block.text));
           break;
       }
     }
-    return wrapLines(out, width);
+    flushPlain(plain);
+    return out;
   }
 
   private trim(): void {
@@ -112,6 +128,23 @@ export class Transcript implements Component {
       this.blocks.splice(0, this.blocks.length - this.maxBlocks);
     }
   }
+}
+
+/**
+ * Render an assistant block as markdown inside a `◆ ` gutter. The Markdown
+ * component wraps to the inner width itself, so its lines skip `wrapLines`.
+ * While streaming, half-written syntax (an unclosed `**` or fence) renders
+ * literally until the closing token arrives, then re-renders formatted.
+ */
+function renderAssistant(block: Block, width: number): string[] {
+  const inner = Math.max(10, width - ASSISTANT_PREFIX.length);
+  if (!block.md) block.md = new Markdown(block.text, 0, 0, markdownTheme());
+  else if (block.mdText !== block.text) block.md.setText(block.text);
+  block.mdText = block.text;
+  const lines = block.md.render(inner).map((l) => l.replace(/ +$/, ""));
+  while (lines.length > 0 && lines[lines.length - 1] === "") lines.pop();
+  if (lines.length === 0) return [C_ASSISTANT_LABEL(ASSISTANT_PREFIX.trimEnd())];
+  return lines.map((l, i) => (i === 0 ? C_ASSISTANT_LABEL(ASSISTANT_PREFIX) : ASSISTANT_INDENT) + l);
 }
 
 /** ANSI-aware soft wrap. We avoid splitting escape sequences. */

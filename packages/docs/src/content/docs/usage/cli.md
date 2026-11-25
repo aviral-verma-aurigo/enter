@@ -28,6 +28,16 @@ The rest of the chrome is intentionally minimal: no horizontal rules, just white
 
 Terminals narrower than 47 columns collapse the banner to a single compact header so nothing wraps. Truecolor terminals (Windows Terminal, iTerm2, VS Code, recent gnome-terminal — anything that sets `COLORTERM=truecolor` or `COLORTERM=24bit`) render the wordmark in soft slate gray; older terminals fall back to plain ANSI white. Set `NO_COLOR=1`, `ENTER_NO_COLOR=1`, or pass `--no-color` to strip all color.
 
+## Formatted output
+
+Assistant replies are rendered as markdown in the terminal: headings, **bold**, *italic*, ~~strikethrough~~, `inline code`, links (with the URL shown dimmed), bullet and numbered lists, block quotes, fenced code blocks, horizontal rules, and tables drawn as boxes. Text wraps to the terminal width.
+
+- **Rich UI** re-renders the reply as it streams. Half-written syntax (an unclosed `**` or code fence) shows literally for a moment, then snaps to formatted once the closing token arrives.
+- **`--simple`** prints each block (paragraph, list, code block, table) once it is complete, so output still appears progressively.
+- **`--print` and `--autonomous`** render the final reply when stdout is a terminal.
+
+When stdout is piped or redirected (`enter --print "…" > out.md`, `| less`, CI logs), the raw markdown is written unchanged so files and scripts get exactly what the model produced. With `NO_COLOR=1` or `ENTER_NO_COLOR=1`, formatting keeps its structure (bullets, wrapping, boxed tables, indented code) but emits no color escapes.
+
 ## Flags
 
 | Flag | Meaning |
@@ -42,7 +52,7 @@ Terminals narrower than 47 columns collapse the banner to a single compact heade
 | `--provider <name>` | Provider key (e.g. `anthropic`, `openai`). Overrides `config.provider` and `ENTER_PROVIDER`. |
 | `--soul <path>` | Use a specific SOUL.md instead of project/user/bundled discovery. |
 | `--session <id>` | Resume a session by ID. Without this flag, a new ULID is allocated. |
-| `--no-color` | Disable ANSI. Same as `NO_COLOR=1`. |
+| `--no-color` | Disable ANSI. Same as `NO_COLOR=1`. Also sets `NO_COLOR=1` for processes Enter spawns (git, delegates, MCP servers) unless you've already set it. |
 | `--simple` | Use plain readline REPL instead of the rich interactive UI. Useful in CI, tmux nests, or any terminal where the rich renderer misbehaves. |
 | `--version`, `-v` | Print version and exit. |
 | `--help`, `-h` | Print help and exit. |
